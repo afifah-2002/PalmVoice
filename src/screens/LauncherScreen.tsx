@@ -16,16 +16,18 @@ const APPS: AppIcon[][] = [
     { label: 'ADDRESS' },
     { label: 'CALC' },
     { label: 'DATE BOOK' },
-    { label: 'EXPENSE' },
   ],
   [
+    { label: 'EXPENSE' },
     { label: 'GIRAFFE' },
     { label: 'HOTSYNC' },
-    { label: 'MAIL' },
-    { label: 'MEMO PAD' },
   ],
   [
+    { label: 'MAIL' },
+    { label: 'MEMO PAD' },
     { label: 'MEMORY' },
+  ],
+  [
     { label: 'PREFS' },
     { label: 'SECURITY' },
     { label: 'TO DO LIST', route: '/tasks' },
@@ -94,8 +96,29 @@ export default function LauncherScreen() {
 
         {/* LCD Screen */}
         <View style={styles.screen}>
-          {/* Subtle LCD grain overlay */}
-          <View style={styles.lcdGrain} />
+          {/* LCD RGB subpixel stripe pattern */}
+          <View style={styles.lcdStripeContainer}>
+            {Array.from({ length: Math.ceil(SCREEN_WIDTH / 2) }).map((_, index) => {
+              const colorIndex = index % 3;
+              const colors = [
+                'rgba(60, 70, 80, 0.15)', // Greyish-blue - more visible
+                'rgba(80, 60, 70, 0.15)', // Greyish-red - more visible
+                'rgba(70, 80, 60, 0.15)', // Greyish-green - more visible
+              ];
+              return (
+                <View
+                  key={index}
+                  style={[
+                    styles.lcdStripe,
+                    {
+                      left: index * 2,
+                      backgroundColor: colors[colorIndex],
+                    },
+                  ]}
+                />
+              );
+            })}
+          </View>
 
           {/* Status Bar with battery and time */}
           <View style={styles.statusBar}>
@@ -111,42 +134,42 @@ export default function LauncherScreen() {
             <Text style={styles.statusTime}>{currentTime}</Text>
           </View>
 
-          {/* App Icons Grid - 4x3 */}
-          <View style={styles.appsGrid}>
-            {APPS.map((row, rowIndex) => (
-              <View key={rowIndex} style={styles.appRow}>
-                {row.map((app, colIndex) => (
-                  <TouchableOpacity
-                    key={`${rowIndex}-${colIndex}`}
-                    style={styles.appContainer}
-                    onPress={() => handleAppPress(app)}
-                    activeOpacity={0.6}
-                  >
-                    <View style={styles.iconCircle}>
-                      <PixelIcon type={app.label} />
-                    </View>
-                    <Text style={styles.appLabel}>{app.label}</Text>
-                  </TouchableOpacity>
+          {/* App Icons Grid - 4x3 with rounded box */}
+          <View style={styles.appsGridContainer}>
+            <View style={styles.appsGridBox}>
+              {/* Pixel effect overlay */}
+              <View style={styles.pixelEffectOverlay} />
+              <View style={styles.appsGrid}>
+                {APPS.map((row, rowIndex) => (
+                  <View key={rowIndex} style={styles.appRow}>
+                    {row.map((app, colIndex) => (
+                      <TouchableOpacity
+                        key={`${rowIndex}-${colIndex}`}
+                        style={styles.appContainer}
+                        onPress={() => handleAppPress(app)}
+                        activeOpacity={0.6}
+                      >
+                        <View style={styles.iconCircle}>
+                          <PixelIcon type={app.label} />
+                        </View>
+                        <Text style={styles.appLabel}>{app.label}</Text>
+                      </TouchableOpacity>
+                    ))}
+                  </View>
                 ))}
               </View>
-            ))}
+            </View>
           </View>
 
           {/* Graffiti Area Container */}
           <View style={styles.graffitiContainer}>
             {/* Left Side Icons */}
             <View style={styles.leftIcons}>
-              <View style={styles.smallIconCircle}>
-                {/* Back arrow */}
-                <View style={styles.arrowLeft} />
+              <View style={styles.sideIconCircle}>
+                <PixelIcon type="HOME" />
               </View>
-              <View style={styles.smallIconCircle}>
-                {/* Menu lines */}
-                <View style={styles.menuLines}>
-                  <View style={styles.menuLine} />
-                  <View style={styles.menuLine} />
-                  <View style={styles.menuLine} />
-                </View>
+              <View style={styles.sideIconCircle}>
+                <PixelIcon type="PHONE" />
               </View>
             </View>
 
@@ -159,13 +182,11 @@ export default function LauncherScreen() {
 
             {/* Right Side Icons */}
             <View style={styles.rightIcons}>
-              <View style={styles.smallIconCircle}>
-                {/* Globe/Web */}
-                <View style={styles.globe} />
+              <View style={styles.sideIconCircle}>
+                <PixelIcon type="CALCULATOR_SYMBOLS" />
               </View>
-              <View style={styles.smallIconCircle}>
-                {/* Search/Find */}
-                <View style={styles.search} />
+              <View style={styles.sideIconCircle}>
+                <PixelIcon type="MAGNIFYING_GLASS" />
               </View>
             </View>
           </View>
@@ -251,14 +272,19 @@ const styles = StyleSheet.create({
     borderWidth: 2,
     borderColor: '#505050',
   },
-  lcdGrain: {
+  lcdStripeContainer: {
     position: 'absolute',
     top: 0,
     left: 0,
     right: 0,
     bottom: 0,
-    backgroundColor: 'rgba(43, 61, 15, 0.03)',
-    opacity: 0.5,
+    flexDirection: 'row',
+    pointerEvents: 'none',
+  },
+  lcdStripe: {
+    width: 2,
+    height: '100%',
+    position: 'absolute',
   },
   statusBar: {
     height: 28,
@@ -297,10 +323,32 @@ const styles = StyleSheet.create({
     fontSize: 8,
     color: '#2B3D0F',
   },
-  appsGrid: {
+  appsGridContainer: {
     flex: 1,
     paddingTop: 24,
     paddingHorizontal: 16,
+    justifyContent: 'center',
+  },
+  appsGridBox: {
+    backgroundColor: '#9CBD5A',
+    borderRadius: 12,
+    borderWidth: 2,
+    borderColor: '#1A2509', // Darker border
+    padding: 16,
+    position: 'relative',
+    overflow: 'hidden',
+  },
+  pixelEffectOverlay: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: 'rgba(43, 61, 15, 0.05)',
+    opacity: 0.6,
+    pointerEvents: 'none',
+  },
+  appsGrid: {
     justifyContent: 'space-evenly',
   },
   appRow: {
@@ -308,119 +356,88 @@ const styles = StyleSheet.create({
     justifyContent: 'space-around',
   },
   appContainer: {
-    width: 80,
+    width: 90,
     alignItems: 'center',
   },
   iconCircle: {
-    width: 64,
-    height: 64,
-    borderRadius: 32,
-    backgroundColor: '#3D4A1F',
+    width: 80,
+    height: 80,
+    borderRadius: 40,
+    backgroundColor: '#2B3D0F', // Darker green background for white icons
     justifyContent: 'center',
     alignItems: 'center',
     borderWidth: 2,
-    borderColor: '#2B3D0F',
+    borderColor: '#1A2509', // Even darker border
   },
   appLabel: {
     fontFamily: 'PressStart2P_400Regular',
-    fontSize: 7,
+    fontSize: 8,
     color: '#2B3D0F',
     textAlign: 'center',
-    lineHeight: 11,
-    marginTop: 8,
+    lineHeight: 12,
+    marginTop: 10,
   },
   graffitiContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: 12,
-    paddingVertical: 12,
+    paddingHorizontal: 8,
+    paddingVertical: 16,
+    height: 200,
   },
   leftIcons: {
-    width: 32,
-    justifyContent: 'space-around',
+    width: 64,
+    justifyContent: 'space-between',
     alignItems: 'center',
-    height: 140,
+    height: 180,
+    paddingVertical: 8,
   },
   rightIcons: {
-    width: 32,
-    justifyContent: 'space-around',
+    width: 64,
+    justifyContent: 'space-between',
     alignItems: 'center',
-    height: 140,
+    height: 180,
+    paddingVertical: 8,
   },
-  smallIconCircle: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
+  sideIconCircle: {
+    width: 56,
+    height: 56,
+    borderRadius: 28,
     borderWidth: 2,
     borderColor: '#2B3D0F',
     justifyContent: 'center',
     alignItems: 'center',
     backgroundColor: '#3D4A1F',
   },
-  arrowLeft: {
-    width: 0,
-    height: 0,
-    borderTopWidth: 6,
-    borderBottomWidth: 6,
-    borderRightWidth: 10,
-    borderTopColor: 'transparent',
-    borderBottomColor: 'transparent',
-    borderRightColor: '#9CBD5A',
-  },
-  menuLines: {
-    justifyContent: 'space-around',
-    height: 14,
-  },
-  menuLine: {
-    width: 12,
-    height: 2,
-    backgroundColor: '#9CBD5A',
-    marginVertical: 1,
-  },
-  globe: {
-    width: 16,
-    height: 16,
-    borderRadius: 8,
-    borderWidth: 2,
-    borderColor: '#9CBD5A',
-  },
-  search: {
-    width: 12,
-    height: 12,
-    borderRadius: 6,
-    borderWidth: 2,
-    borderColor: '#9CBD5A',
-  },
   graffitiArea: {
     flex: 1,
-    height: 140,
+    height: 180,
     borderWidth: 2,
     borderColor: '#6B8537',
     backgroundColor: '#9CBD5A',
-    marginHorizontal: 6,
+    marginHorizontal: 8,
     position: 'relative',
     justifyContent: 'center',
     alignItems: 'center',
   },
   graffitiLabelTopLeft: {
     position: 'absolute',
-    top: 8,
-    left: 12,
+    top: 12,
+    left: 16,
     fontFamily: 'PressStart2P_400Regular',
     fontSize: 8,
     color: '#6B8537',
   },
   graffitiLabelTopRight: {
     position: 'absolute',
-    top: 8,
-    right: 12,
+    top: 12,
+    right: 16,
     fontFamily: 'PressStart2P_400Regular',
     fontSize: 8,
     color: '#6B8537',
   },
   cursor: {
-    width: 8,
-    height: 12,
+    width: 10,
+    height: 14,
     backgroundColor: '#2B3D0F',
   },
   buttonsArea: {

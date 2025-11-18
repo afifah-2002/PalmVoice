@@ -2,9 +2,9 @@ import React from 'react';
 import { StyleSheet, View } from 'react-native';
 
 const PIXEL_SIZE = 4;
-const DARK = '#9CBD5A'; // Light color for icon on dark background
-const MEDIUM = '#B8D87A';
-const LIGHT = '#D4E8A8';
+const DARK = '#FFFFFF'; // White for icon on dark green background
+const MEDIUM = '#D4E8A8'; // Light green for highlights
+const LIGHT = '#B8D87A'; // Medium green for lighter highlights
 
 interface PixelIconProps {
   type: string;
@@ -464,6 +464,249 @@ export const PixelIcon: React.FC<PixelIconProps> = ({ type }) => {
           </View>
         );
 
+      case 'HOME':
+        // Home icon - house shape
+        return (
+          <View style={styles.iconContainer}>
+            <View style={styles.row}>
+              <View style={[styles.pixel, { backgroundColor: 'transparent' }]} />
+              <View style={[styles.pixel, { backgroundColor: DARK }]} />
+              <View style={[styles.pixel, { backgroundColor: 'transparent' }]} />
+            </View>
+            <View style={styles.row}>
+              <View style={[styles.pixel, { backgroundColor: DARK }]} />
+              <View style={[styles.pixel, { backgroundColor: DARK }]} />
+              <View style={[styles.pixel, { backgroundColor: DARK }]} />
+            </View>
+            <View style={styles.row}>
+              <View style={[styles.pixel, { backgroundColor: DARK }]} />
+              <View style={[styles.pixel, { backgroundColor: MEDIUM }]} />
+              <View style={[styles.pixel, { backgroundColor: DARK }]} />
+            </View>
+            <View style={styles.row}>
+              <View style={[styles.pixel, { backgroundColor: DARK }]} />
+              <View style={[styles.pixel, { backgroundColor: MEDIUM }]} />
+              <View style={[styles.pixel, { backgroundColor: DARK }]} />
+            </View>
+            <View style={styles.row}>
+              <View style={[styles.pixel, { backgroundColor: DARK }]} />
+              <View style={[styles.pixel, { backgroundColor: DARK }]} />
+              <View style={[styles.pixel, { backgroundColor: DARK }]} />
+            </View>
+          </View>
+        );
+
+      case 'ARROW_LEFT':
+        // Left-pointing arrow
+        return (
+          <View style={styles.iconContainer}>
+            <View style={styles.row}>
+              <View style={[styles.pixel, { backgroundColor: 'transparent' }]} />
+              <View style={[styles.pixel, { backgroundColor: 'transparent' }]} />
+              <View style={[styles.pixel, { backgroundColor: DARK }]} />
+              <View style={[styles.pixel, { backgroundColor: 'transparent' }]} />
+              <View style={[styles.pixel, { backgroundColor: 'transparent' }]} />
+            </View>
+            <View style={styles.row}>
+              <View style={[styles.pixel, { backgroundColor: 'transparent' }]} />
+              <View style={[styles.pixel, { backgroundColor: DARK }]} />
+              <View style={[styles.pixel, { backgroundColor: DARK }]} />
+              <View style={[styles.pixel, { backgroundColor: 'transparent' }]} />
+              <View style={[styles.pixel, { backgroundColor: 'transparent' }]} />
+            </View>
+            <View style={styles.row}>
+              <View style={[styles.pixel, { backgroundColor: DARK }]} />
+              <View style={[styles.pixel, { backgroundColor: DARK }]} />
+              <View style={[styles.pixel, { backgroundColor: DARK }]} />
+              <View style={[styles.pixel, { backgroundColor: DARK }]} />
+              <View style={[styles.pixel, { backgroundColor: 'transparent' }]} />
+            </View>
+            <View style={styles.row}>
+              <View style={[styles.pixel, { backgroundColor: 'transparent' }]} />
+              <View style={[styles.pixel, { backgroundColor: DARK }]} />
+              <View style={[styles.pixel, { backgroundColor: DARK }]} />
+              <View style={[styles.pixel, { backgroundColor: 'transparent' }]} />
+              <View style={[styles.pixel, { backgroundColor: 'transparent' }]} />
+            </View>
+            <View style={styles.row}>
+              <View style={[styles.pixel, { backgroundColor: 'transparent' }]} />
+              <View style={[styles.pixel, { backgroundColor: 'transparent' }]} />
+              <View style={[styles.pixel, { backgroundColor: DARK }]} />
+              <View style={[styles.pixel, { backgroundColor: 'transparent' }]} />
+              <View style={[styles.pixel, { backgroundColor: 'transparent' }]} />
+            </View>
+          </View>
+        );
+
+      case 'PHONE':
+        // Phone receiver icon
+        return (
+          <View style={styles.iconContainer}>
+            <View style={styles.row}>
+              <View style={[styles.pixel, { backgroundColor: 'transparent' }]} />
+              <View style={[styles.pixel, { backgroundColor: DARK }]} />
+              <View style={[styles.pixel, { backgroundColor: DARK }]} />
+              <View style={[styles.pixel, { backgroundColor: DARK }]} />
+              <View style={[styles.pixel, { backgroundColor: 'transparent' }]} />
+            </View>
+            <View style={styles.row}>
+              <View style={[styles.pixel, { backgroundColor: DARK }]} />
+              <View style={[styles.pixel, { backgroundColor: DARK }]} />
+              <View style={[styles.pixel, { backgroundColor: DARK }]} />
+              <View style={[styles.pixel, { backgroundColor: DARK }]} />
+              <View style={[styles.pixel, { backgroundColor: DARK }]} />
+            </View>
+            <View style={styles.row}>
+              <View style={[styles.pixel, { backgroundColor: DARK }]} />
+              <View style={[styles.pixel, { backgroundColor: MEDIUM }]} />
+              <View style={[styles.pixel, { backgroundColor: MEDIUM }]} />
+              <View style={[styles.pixel, { backgroundColor: MEDIUM }]} />
+              <View style={[styles.pixel, { backgroundColor: DARK }]} />
+            </View>
+            <View style={styles.row}>
+              <View style={[styles.pixel, { backgroundColor: DARK }]} />
+              <View style={[styles.pixel, { backgroundColor: DARK }]} />
+              <View style={[styles.pixel, { backgroundColor: DARK }]} />
+              <View style={[styles.pixel, { backgroundColor: DARK }]} />
+              <View style={[styles.pixel, { backgroundColor: DARK }]} />
+            </View>
+            <View style={styles.row}>
+              <View style={[styles.pixel, { backgroundColor: 'transparent' }]} />
+              <View style={[styles.pixel, { backgroundColor: DARK }]} />
+              <View style={[styles.pixel, { backgroundColor: DARK }]} />
+              <View style={[styles.pixel, { backgroundColor: DARK }]} />
+              <View style={[styles.pixel, { backgroundColor: 'transparent' }]} />
+            </View>
+          </View>
+        );
+
+      case 'MAGNIFYING_GLASS':
+        // Magnifying glass/search icon
+        return (
+          <View style={styles.iconContainer}>
+            <View style={styles.row}>
+              <View style={[styles.pixel, { backgroundColor: 'transparent' }]} />
+              <View style={[styles.pixel, { backgroundColor: DARK }]} />
+              <View style={[styles.pixel, { backgroundColor: DARK }]} />
+              <View style={[styles.pixel, { backgroundColor: DARK }]} />
+              <View style={[styles.pixel, { backgroundColor: 'transparent' }]} />
+            </View>
+            <View style={styles.row}>
+              <View style={[styles.pixel, { backgroundColor: DARK }]} />
+              <View style={[styles.pixel, { backgroundColor: MEDIUM }]} />
+              <View style={[styles.pixel, { backgroundColor: MEDIUM }]} />
+              <View style={[styles.pixel, { backgroundColor: MEDIUM }]} />
+              <View style={[styles.pixel, { backgroundColor: DARK }]} />
+            </View>
+            <View style={styles.row}>
+              <View style={[styles.pixel, { backgroundColor: DARK }]} />
+              <View style={[styles.pixel, { backgroundColor: MEDIUM }]} />
+              <View style={[styles.pixel, { backgroundColor: MEDIUM }]} />
+              <View style={[styles.pixel, { backgroundColor: MEDIUM }]} />
+              <View style={[styles.pixel, { backgroundColor: DARK }]} />
+            </View>
+            <View style={styles.row}>
+              <View style={[styles.pixel, { backgroundColor: DARK }]} />
+              <View style={[styles.pixel, { backgroundColor: MEDIUM }]} />
+              <View style={[styles.pixel, { backgroundColor: MEDIUM }]} />
+              <View style={[styles.pixel, { backgroundColor: DARK }]} />
+              <View style={[styles.pixel, { backgroundColor: DARK }]} />
+            </View>
+            <View style={styles.row}>
+              <View style={[styles.pixel, { backgroundColor: 'transparent' }]} />
+              <View style={[styles.pixel, { backgroundColor: DARK }]} />
+              <View style={[styles.pixel, { backgroundColor: DARK }]} />
+              <View style={[styles.pixel, { backgroundColor: DARK }]} />
+              <View style={[styles.pixel, { backgroundColor: 'transparent' }]} />
+            </View>
+          </View>
+        );
+
+      case 'CALCULATOR_SYMBOLS':
+        // Calculator with + - % * symbols in a grid
+        return (
+          <View style={styles.iconContainer}>
+            <View style={styles.row}>
+              {[...Array(5)].map((_, i) => (
+                <View key={i} style={[styles.pixel, { backgroundColor: DARK }]} />
+              ))}
+            </View>
+            {/* Row with + and - */}
+            <View style={styles.row}>
+              <View style={[styles.pixel, { backgroundColor: DARK }]} />
+              <View style={[styles.pixel, { backgroundColor: MEDIUM }]} />
+              <View style={[styles.pixel, { backgroundColor: MEDIUM }]} />
+              <View style={[styles.pixel, { backgroundColor: MEDIUM }]} />
+              <View style={[styles.pixel, { backgroundColor: DARK }]} />
+            </View>
+            <View style={styles.row}>
+              <View style={[styles.pixel, { backgroundColor: DARK }]} />
+              <View style={[styles.pixel, { backgroundColor: 'transparent' }]} />
+              <View style={[styles.pixel, { backgroundColor: MEDIUM }]} />
+              <View style={[styles.pixel, { backgroundColor: 'transparent' }]} />
+              <View style={[styles.pixel, { backgroundColor: DARK }]} />
+            </View>
+            {/* Row with % and * */}
+            <View style={styles.row}>
+              <View style={[styles.pixel, { backgroundColor: DARK }]} />
+              <View style={[styles.pixel, { backgroundColor: MEDIUM }]} />
+              <View style={[styles.pixel, { backgroundColor: 'transparent' }]} />
+              <View style={[styles.pixel, { backgroundColor: MEDIUM }]} />
+              <View style={[styles.pixel, { backgroundColor: DARK }]} />
+            </View>
+            <View style={styles.row}>
+              <View style={[styles.pixel, { backgroundColor: DARK }]} />
+              <View style={[styles.pixel, { backgroundColor: 'transparent' }]} />
+              <View style={[styles.pixel, { backgroundColor: MEDIUM }]} />
+              <View style={[styles.pixel, { backgroundColor: 'transparent' }]} />
+              <View style={[styles.pixel, { backgroundColor: DARK }]} />
+            </View>
+            <View style={styles.row}>
+              {[...Array(5)].map((_, i) => (
+                <View key={i} style={[styles.pixel, { backgroundColor: DARK }]} />
+              ))}
+            </View>
+          </View>
+        );
+
+      case 'CALCULATOR_ICON':
+        // Calculator icon (keyboard style)
+        return (
+          <View style={styles.iconContainer}>
+            <View style={styles.row}>
+              {[...Array(5)].map((_, i) => (
+                <View key={i} style={[styles.pixel, { backgroundColor: DARK }]} />
+              ))}
+            </View>
+            <View style={styles.row}>
+              <View style={[styles.pixel, { backgroundColor: DARK }]} />
+              <View style={[styles.pixel, { backgroundColor: MEDIUM }]} />
+              <View style={[styles.pixel, { backgroundColor: MEDIUM }]} />
+              <View style={[styles.pixel, { backgroundColor: MEDIUM }]} />
+              <View style={[styles.pixel, { backgroundColor: DARK }]} />
+            </View>
+            <View style={styles.row}>
+              <View style={[styles.pixel, { backgroundColor: DARK }]} />
+              <View style={[styles.pixel, { backgroundColor: DARK }]} />
+              <View style={[styles.pixel, { backgroundColor: 'transparent' }]} />
+              <View style={[styles.pixel, { backgroundColor: DARK }]} />
+              <View style={[styles.pixel, { backgroundColor: DARK }]} />
+            </View>
+            <View style={styles.row}>
+              <View style={[styles.pixel, { backgroundColor: DARK }]} />
+              <View style={[styles.pixel, { backgroundColor: DARK }]} />
+              <View style={[styles.pixel, { backgroundColor: 'transparent' }]} />
+              <View style={[styles.pixel, { backgroundColor: DARK }]} />
+              <View style={[styles.pixel, { backgroundColor: DARK }]} />
+            </View>
+            <View style={styles.row}>
+              {[...Array(5)].map((_, i) => (
+                <View key={i} style={[styles.pixel, { backgroundColor: DARK }]} />
+              ))}
+            </View>
+          </View>
+        );
+
       default:
         // Generic square for other apps
         return (
@@ -502,3 +745,13 @@ const styles = StyleSheet.create({
     height: PIXEL_SIZE,
   },
 });
+
+// Export a function to get icon size based on type
+export const getIconSize = (type: string): { width: number; height: number } => {
+  // Side icons (ARROW_LEFT, PHONE, etc.) should be larger
+  if (['ARROW_LEFT', 'PHONE', 'MAGNIFYING_GLASS', 'CALCULATOR_ICON'].includes(type)) {
+    return { width: 48, height: 48 };
+  }
+  // App icons
+  return { width: 56, height: 56 };
+};

@@ -136,6 +136,9 @@ export const RecordScreen: React.FC<RecordScreenProps> = ({ onTasksCreated }) =>
 
   return (
     <View style={styles.container}>
+      {/* LCD grain overlay */}
+      <View style={styles.lcdGrain} />
+      
       <View style={styles.header}>
         <Text style={styles.headerText}>RECORD NOTE</Text>
       </View>
@@ -183,7 +186,8 @@ export const RecordScreen: React.FC<RecordScreenProps> = ({ onTasksCreated }) =>
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#FFFFFF',
+    backgroundColor: '#9CBD5A', // Changed from '#FFFFFF'
+    position: 'relative',
   },
   header: {
     height: 60,
@@ -243,5 +247,15 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     borderTopWidth: 2,
     borderTopColor: '#000000',
+  },
+  lcdGrain: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: 'rgba(43, 61, 15, 0.03)',
+    opacity: 0.5,
+    pointerEvents: 'none',
   },
 });
