@@ -1,63 +1,183 @@
 import { PressStart2P_400Regular, useFonts } from '@expo-google-fonts/press-start-2p';
+import * as Haptics from 'expo-haptics';
 import { useRouter } from 'expo-router';
 import React, { useEffect, useState } from 'react';
-import { Dimensions, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
-import { PixelIcon } from '../components/PixelIcon';
-
-const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
+import { StyleSheet, Text, View } from 'react-native';
+import { AppIconGrid } from '../components/AppIconGrid';
+import { AppPickerModal } from '../components/AppPickerModal';
+import { CustomModeModal } from '../components/CustomModeModal';
+import { FavoriteButtons } from '../components/FavoriteButtons';
+import { GraffitiArea } from '../components/GraffitiArea';
+import { HeaderBar } from '../components/HeaderBar';
+import { LCDStripeEffect } from '../components/LCDStripeEffect';
+import { PALM_THEMES, Theme } from '../constants/palmThemes';
 
 interface AppIcon {
   label: string;
   route?: string;
 }
 
-const APPS: AppIcon[][] = [
-  [
-    { label: 'ADDRESS' },
-    { label: 'CALC' },
-    { label: 'DATE BOOK' },
+type AppIconOrEmpty = AppIcon | null;
+
+type Mode = string;
+
+const MODE_APPS: Record<Mode, AppIconOrEmpty[][]> = {
+  Work: [
+    [
+      { label: 'TO DO LIST', route: '/tasks' },
+      { label: 'CALC' },
+      { label: 'DATE BOOK' },
+    ],
+    [
+      { label: 'MAIL' },
+      { label: 'MEMO PAD' },
+      { label: 'ADDRESS' },
+    ],
+    [
+      { label: 'HOTSYNC' },
+      { label: 'MEMORY' },
+      { label: 'PREFS' },
+    ],
+    [
+      { label: 'GIRAFFE' },
+      null, // Empty slot
+      null, // Empty slot
+    ],
+    [
+      null, // Empty slot
+      null, // Empty slot
+      null, // Empty slot
+    ],
   ],
-  [
-    { label: 'EXPENSE' },
-    { label: 'GIRAFFE' },
-    { label: 'HOTSYNC' },
+  Study: [
+    [
+      { label: 'MEMO PAD' },
+      { label: 'DATE BOOK' },
+      { label: 'MEMORY' },
+    ],
+    [
+      { label: 'MAIL' },
+      { label: 'CALC' },
+      { label: 'TO DO LIST', route: '/tasks' },
+    ],
+    [
+      { label: 'ADDRESS' },
+      { label: 'EXPENSE' },
+      { label: 'PREFS' },
+    ],
+    [
+      null, // Empty slot
+      null, // Empty slot
+      null, // Empty slot
+    ],
+    [
+      null, // Empty slot
+      null, // Empty slot
+      null, // Empty slot
+    ],
   ],
-  [
-    { label: 'MAIL' },
-    { label: 'MEMO PAD' },
-    { label: 'MEMORY' },
+  Focus: [
+    [
+      { label: 'TO DO LIST', route: '/tasks' },
+      { label: 'MEMO PAD' },
+      { label: 'DATE BOOK' },
+    ],
+    [
+      { label: 'MEMORY' },
+      { label: 'SECURITY' },
+      { label: 'CALC' },
+    ],
+    [
+      { label: 'MAIL' },
+      { label: 'EXPENSE' },
+      { label: 'ADDRESS' },
+    ],
+    [
+      { label: 'PREFS' },
+      null, // Empty slot
+      null, // Empty slot
+    ],
+    [
+      null, // Empty slot
+      null, // Empty slot
+      null, // Empty slot
+    ],
   ],
-  [
-    { label: 'PREFS' },
-    { label: 'SECURITY' },
-    { label: 'TO DO LIST', route: '/tasks' },
+  Lazy: [
+    [
+      { label: 'GIRAFFE' },
+      { label: 'MAIL' },
+      { label: 'MEMO PAD' },
+    ],
+    [
+      { label: 'ADDRESS' },
+      { label: 'TO DO LIST', route: '/tasks' },
+      { label: 'MEMORY' },
+    ],
+    [
+      null, // Empty slot
+      null, // Empty slot
+      null, // Empty slot
+    ],
+    [
+      null, // Empty slot
+      null, // Empty slot
+      null, // Empty slot
+    ],
+    [
+      null, // Empty slot
+      null, // Empty slot
+      null, // Empty slot
+    ],
   ],
-];
+};
 
 export default function LauncherScreen() {
   const router = useRouter();
   const [cursorVisible, setCursorVisible] = useState(true);
-  const [currentTime, setCurrentTime] = useState('');
+  const [currentMode, setCurrentMode] = useState<Mode>('Work');
+  const [currentTheme, setCurrentTheme] = useState<Theme>('Dark Blue');
+  const [isAppPickerOpen, setIsAppPickerOpen] = useState(false);
+  const [selectedSlot, setSelectedSlot] = useState<{ rowIndex: number; colIndex: number } | null>(null);
+  const [modeApps, setModeApps] = useState<Record<Mode, AppIconOrEmpty[][]>>(MODE_APPS);
+  const [isEditMode, setIsEditMode] = useState(false);
+  const [selectedIconForSwap, setSelectedIconForSwap] = useState<{ rowIndex: number; colIndex: number } | null>(null);
+  const [customModes, setCustomModes] = useState<Record<string, AppIconOrEmpty[][]>>({});
+  const [isCustomModeModalOpen, setIsCustomModeModalOpen] = useState(false);
+  const [editingModeName, setEditingModeName] = useState<string | null>(null);
 
   const [fontsLoaded] = useFonts({
     PressStart2P_400Regular,
   });
 
-  // Update time every minute
-  useEffect(() => {
-    const updateTime = () => {
-      const now = new Date();
-      let hours = now.getHours();
-      const minutes = now.getMinutes();
-      const ampm = hours >= 12 ? 'pm' : 'am';
-      hours = hours % 12 || 12;
-      setCurrentTime(`${hours}:${minutes.toString().padStart(2, '0')} ${ampm}`);
-    };
+  // Merge default and custom modes
+  const allModeApps = { ...modeApps, ...customModes };
+  const APPS = allModeApps[currentMode] || [];
+  
+  // Get all available modes (default + custom)
+  const getAllModes = (): Mode[] => {
+    const defaultModes: Mode[] = ['Work', 'Study', 'Focus', 'Lazy'];
+    const customModeNames = Object.keys(customModes);
+    return [...defaultModes, ...customModeNames];
+  };
+  
+  const allModes = getAllModes();
 
-    updateTime();
-    const interval = setInterval(updateTime, 60000);
-    return () => clearInterval(interval);
-  }, []);
+  // Available apps for the picker
+  const AVAILABLE_APPS = [
+    'ADDRESS',
+    'CALC',
+    'DATE BOOK',
+    'EXPENSE',
+    'GIRAFFE',
+    'HOTSYNC',
+    'MAIL',
+    'MEMO PAD',
+    'MEMORY',
+    'PREFS',
+    'SECURITY',
+    'TO DO LIST',
+  ];
 
   // Blinking cursor animation
   useEffect(() => {
@@ -67,10 +187,282 @@ export default function LauncherScreen() {
     return () => clearInterval(interval);
   }, []);
 
-  const handleAppPress = (app: AppIcon) => {
-    if (app.route) {
-      router.push(app.route as any);
+  const handleAppPress = (app: AppIcon, rowIndex: number, colIndex: number) => {
+    if (isEditMode) {
+      // In edit mode, handle icon swapping
+      if (selectedIconForSwap) {
+        // Swap the two icons
+        const { rowIndex: swapRow, colIndex: swapCol } = selectedIconForSwap;
+        if (swapRow === rowIndex && swapCol === colIndex) {
+          // Same icon, deselect
+          setSelectedIconForSwap(null);
+        } else {
+          // Swap the icons
+          const updateApps = (apps: AppIconOrEmpty[][]) => {
+            const newModeApps = [...apps];
+            const firstRow = [...newModeApps[swapRow]];
+            const firstApp = firstRow[swapCol];
+            const secondRow = [...newModeApps[rowIndex]];
+            const secondApp = secondRow[colIndex];
+            
+            firstRow[swapCol] = secondApp;
+            secondRow[colIndex] = firstApp;
+            
+            newModeApps[swapRow] = firstRow;
+            newModeApps[rowIndex] = secondRow;
+            return newModeApps;
+          };
+          
+          // Update in the appropriate state (custom modes or default modes)
+          if (customModes[currentMode]) {
+            setCustomModes((prev) => ({
+              ...prev,
+              [currentMode]: updateApps(prev[currentMode]),
+            }));
+          } else {
+            setModeApps((prev) => ({
+              ...prev,
+              [currentMode]: updateApps(prev[currentMode] || []),
+            }));
+          }
+          setSelectedIconForSwap(null);
+          Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+        }
+      } else {
+        // Select this icon for swapping
+        setSelectedIconForSwap({ rowIndex, colIndex });
+        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+      }
+    } else {
+      // Normal mode - open the app
+      if (app.route) {
+        router.push(app.route as any);
+      }
     }
+  };
+
+  const handleIconLongPress = (app: AppIcon, rowIndex: number, colIndex: number) => {
+    // Haptic feedback on long press
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    
+    // Toggle edit mode
+    setIsEditMode(true);
+    setSelectedIconForSwap(null);
+  };
+  
+  const handleDeleteIcon = (rowIndex: number, colIndex: number) => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    const updateApps = (apps: AppIconOrEmpty[][]) => {
+      const newModeApps = [...apps];
+      const newRow = [...newModeApps[rowIndex]];
+      newRow[colIndex] = null;
+      newModeApps[rowIndex] = newRow;
+      return newModeApps;
+    };
+    
+    // Update in the appropriate state (custom modes or default modes)
+    if (customModes[currentMode]) {
+      setCustomModes((prev) => ({
+        ...prev,
+        [currentMode]: updateApps(prev[currentMode]),
+      }));
+    } else {
+      setModeApps((prev) => ({
+        ...prev,
+        [currentMode]: updateApps(prev[currentMode] || []),
+      }));
+    }
+  };
+  
+  const handleChangeIcon = (rowIndex: number, colIndex: number) => {
+    setSelectedSlot({ rowIndex, colIndex });
+    setIsAppPickerOpen(true);
+  };
+  
+  const exitEditMode = () => {
+    setIsEditMode(false);
+    setSelectedIconForSwap(null);
+  };
+
+  const handleEmptySlotPress = (rowIndex: number, colIndex: number) => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    setSelectedSlot({ rowIndex, colIndex });
+    setIsAppPickerOpen(true);
+  };
+
+  const handleAppSelect = (appLabel: string) => {
+    if (selectedSlot) {
+      const { rowIndex, colIndex } = selectedSlot;
+      
+      // Check if app already exists in this mode (excluding the current slot if it's being changed)
+      const currentApps = allModeApps[currentMode] || [];
+      let swapRowIndex: number | null = null;
+      let swapColIndex: number | null = null;
+      
+      currentApps.forEach((row, rIdx) => {
+        row.forEach((app, cIdx) => {
+          // Skip the current slot if we're changing an existing app
+          if (rIdx === rowIndex && cIdx === colIndex) {
+            return;
+          }
+          if (app !== null && app.label === appLabel) {
+            swapRowIndex = rIdx;
+            swapColIndex = cIdx;
+          }
+        });
+      });
+
+      // If app exists, swap the two icons
+      if (swapRowIndex !== null && swapColIndex !== null) {
+        const targetRowIndex = swapRowIndex;
+        const targetColIndex = swapColIndex;
+        
+        const updateApps = (apps: AppIconOrEmpty[][]) => {
+          const newModeApps = [...apps];
+          const currentRow = [...newModeApps[rowIndex]];
+          const currentApp = currentRow[colIndex];
+          const swapRow = [...newModeApps[targetRowIndex]];
+          const newApp = { label: appLabel, route: appLabel === 'TO DO LIST' ? '/tasks' : undefined };
+          
+          currentRow[colIndex] = newApp;
+          swapRow[targetColIndex] = currentApp;
+          
+          newModeApps[rowIndex] = currentRow;
+          newModeApps[targetRowIndex] = swapRow;
+          return newModeApps;
+        };
+        
+        // Update in the appropriate state (custom modes or default modes)
+        if (customModes[currentMode]) {
+          setCustomModes((prev) => ({
+            ...prev,
+            [currentMode]: updateApps(prev[currentMode]),
+          }));
+        } else {
+          setModeApps((prev) => ({
+            ...prev,
+            [currentMode]: updateApps(prev[currentMode] || []),
+          }));
+        }
+      } else {
+        // Add or update the app in the selected slot (new app, no swap needed)
+        const updateApps = (apps: AppIconOrEmpty[][]) => {
+          const newModeApps = [...apps];
+          const newRow = [...newModeApps[rowIndex]];
+          newRow[colIndex] = { label: appLabel, route: appLabel === 'TO DO LIST' ? '/tasks' : undefined };
+          newModeApps[rowIndex] = newRow;
+          return newModeApps;
+        };
+        
+        // Update in the appropriate state (custom modes or default modes)
+        if (customModes[currentMode]) {
+          setCustomModes((prev) => ({
+            ...prev,
+            [currentMode]: updateApps(prev[currentMode]),
+          }));
+        } else {
+          setModeApps((prev) => ({
+            ...prev,
+            [currentMode]: updateApps(prev[currentMode] || []),
+          }));
+        }
+      }
+
+      setIsAppPickerOpen(false);
+      setSelectedSlot(null);
+    }
+  };
+
+  const handleModeChange = (mode: Mode) => {
+    if (mode === '+') {
+      // Open custom mode creation modal
+      setEditingModeName(null);
+      setIsCustomModeModalOpen(true);
+      return;
+    }
+    setCurrentMode(mode);
+    // Initialize mode apps if they don't exist
+    if (!allModeApps[mode]) {
+      if (MODE_APPS[mode as keyof typeof MODE_APPS]) {
+        setModeApps((prev) => ({
+          ...prev,
+          [mode]: MODE_APPS[mode as keyof typeof MODE_APPS],
+        }));
+      }
+    }
+  };
+  
+  const handleSaveCustomMode = (name: string, apps: AppIconOrEmpty[][]) => {
+    if (editingModeName && editingModeName !== name) {
+      // Renaming mode - remove old name, add new
+      setCustomModes((prev) => {
+        const updated = { ...prev };
+        delete updated[editingModeName];
+        updated[name] = apps;
+        return updated;
+      });
+      // Also update modeApps if it was in the default modes
+      if (currentMode === editingModeName) {
+        setCurrentMode(name);
+      }
+    } else {
+      // New mode or same name
+      setCustomModes((prev) => ({
+        ...prev,
+        [name]: apps,
+      }));
+      if (!editingModeName) {
+        setCurrentMode(name);
+      } else {
+        // Update the mode apps for the edited mode
+        setModeApps((prev) => ({
+          ...prev,
+          [name]: apps,
+        }));
+      }
+    }
+    setIsCustomModeModalOpen(false);
+    setEditingModeName(null);
+    setIsEditMode(false);
+    setSelectedIconForSwap(null);
+  };
+  
+  const handleEditMode = (modeName: string) => {
+    setEditingModeName(modeName);
+    setIsCustomModeModalOpen(true);
+  };
+  
+  const handleDeleteCustomMode = (modeName: string) => {
+    setCustomModes((prev) => {
+      const updated = { ...prev };
+      delete updated[modeName];
+      return updated;
+    });
+    
+    // If the deleted mode was the current mode, switch to Work mode
+    if (currentMode === modeName) {
+      setCurrentMode('Work');
+    }
+  };
+  
+  const getEditingModeApps = (): AppIconOrEmpty[][] => {
+    if (editingModeName) {
+      // If editing existing custom mode, use it; otherwise start with empty grid
+      return customModes[editingModeName] || Array(5).fill(null).map(() => Array(3).fill(null));
+    }
+    // New mode - start with empty grid
+    return Array(5).fill(null).map(() => Array(3).fill(null));
+  };
+  
+  const editingModeApps = getEditingModeApps();
+
+  const handleThemeChange = (theme: Theme) => {
+    setCurrentTheme(theme);
+  };
+
+  const handleAppPickerClose = () => {
+    setIsAppPickerOpen(false);
+    setSelectedSlot(null);
   };
 
   if (!fontsLoaded) {
@@ -95,134 +487,99 @@ export default function LauncherScreen() {
         </View>
 
         {/* LCD Screen */}
-        <View style={styles.screen}>
+        <View style={[styles.screen, { backgroundColor: PALM_THEMES[currentTheme].screenBackground }]}>
           {/* LCD RGB subpixel stripe pattern */}
-          <View style={styles.lcdStripeContainer}>
-            {Array.from({ length: Math.ceil(SCREEN_WIDTH / 2) }).map((_, index) => {
-              const colorIndex = index % 3;
-              const colors = [
-                'rgba(60, 70, 80, 0.15)', // Greyish-blue - more visible
-                'rgba(80, 60, 70, 0.15)', // Greyish-red - more visible
-                'rgba(70, 80, 60, 0.15)', // Greyish-green - more visible
-              ];
-              return (
-                <View
-                  key={index}
-                  style={[
-                    styles.lcdStripe,
-                    {
-                      left: index * 2,
-                      backgroundColor: colors[colorIndex],
-                    },
-                  ]}
-                />
-              );
-            })}
-          </View>
+          <LCDStripeEffect />
 
-          {/* Status Bar with battery and time */}
-          <View style={styles.statusBar}>
-            {/* Battery icon (full) */}
-            <View style={styles.batteryContainer}>
-              <View style={styles.batteryBody}>
-                <View style={styles.batteryFill} />
-              </View>
-              <View style={styles.batteryTip} />
-            </View>
-            
-            {/* Time */}
-            <Text style={styles.statusTime}>{currentTime}</Text>
-          </View>
+          {/* Header Bar */}
+          <HeaderBar
+            currentMode={currentMode}
+            onModeChange={handleModeChange}
+            currentTheme={currentTheme}
+            onThemeChange={handleThemeChange}
+            theme={PALM_THEMES[currentTheme]}
+            allModes={allModes}
+            customModes={Object.keys(customModes)}
+            onEditMode={handleEditMode}
+            maxModesReached={allModes.length >= 10}
+          />
 
-          {/* App Icons Grid - 4x3 with rounded box */}
-          <View style={styles.appsGridContainer}>
-            <View style={styles.appsGridBox}>
-              {/* Pixel effect overlay */}
-              <View style={styles.pixelEffectOverlay} />
-              <View style={styles.appsGrid}>
-                {APPS.map((row, rowIndex) => (
-                  <View key={rowIndex} style={styles.appRow}>
-                    {row.map((app, colIndex) => (
-                      <TouchableOpacity
-                        key={`${rowIndex}-${colIndex}`}
-                        style={styles.appContainer}
-                        onPress={() => handleAppPress(app)}
-                        activeOpacity={0.6}
-                      >
-                        <View style={styles.iconCircle}>
-                          <PixelIcon type={app.label} />
-                        </View>
-                        <Text style={styles.appLabel}>{app.label}</Text>
-                      </TouchableOpacity>
-                    ))}
-                  </View>
-                ))}
-              </View>
-            </View>
-          </View>
+          {/* App Icons Grid */}
+          <AppIconGrid
+            apps={APPS}
+            onAppPress={handleAppPress}
+            onIconLongPress={handleIconLongPress}
+            onEmptySlotPress={handleEmptySlotPress}
+            theme={PALM_THEMES[currentTheme]}
+            isEditMode={isEditMode}
+            selectedIconForSwap={selectedIconForSwap}
+            onDeleteIcon={handleDeleteIcon}
+            onChangeIcon={handleChangeIcon}
+            onExitEditMode={exitEditMode}
+          />
 
-          {/* Graffiti Area Container */}
-          <View style={styles.graffitiContainer}>
-            {/* Left Side Icons */}
-            <View style={styles.leftIcons}>
-              <View style={styles.sideIconCircle}>
-                <PixelIcon type="HOME" />
-              </View>
-              <View style={styles.sideIconCircle}>
-                <PixelIcon type="PHONE" />
-              </View>
-            </View>
-
-            {/* Graffiti Writing Area - Single Box */}
-            <View style={styles.graffitiArea}>
-              <Text style={styles.graffitiLabelTopLeft}>ABC</Text>
-              <Text style={styles.graffitiLabelTopRight}>123</Text>
-              {cursorVisible && <View style={styles.cursor} />}
-            </View>
-
-            {/* Right Side Icons */}
-            <View style={styles.rightIcons}>
-              <View style={styles.sideIconCircle}>
-                <PixelIcon type="CALCULATOR_SYMBOLS" />
-              </View>
-              <View style={styles.sideIconCircle}>
-                <PixelIcon type="MAGNIFYING_GLASS" />
-              </View>
-            </View>
-          </View>
+          {/* Graffiti Area */}
+          <GraffitiArea cursorVisible={cursorVisible} theme={PALM_THEMES[currentTheme]} />
         </View>
 
-        {/* Physical Buttons */}
-        <View style={styles.buttonsArea}>
-          <View style={styles.buttonGroup}>
-            <View style={styles.button}>
-              <Text style={styles.buttonIcon}>📅</Text>
-            </View>
-            <Text style={styles.buttonLabel}>Date</Text>
-          </View>
-          <View style={styles.buttonGroup}>
-            <View style={styles.button}>
-              <Text style={styles.buttonIcon}>📇</Text>
-            </View>
-            <Text style={styles.buttonLabel}>Address</Text>
-          </View>
-          <View style={styles.buttonScroll}>
-            <Text style={styles.scrollText}>↕</Text>
-          </View>
-          <View style={styles.buttonGroup}>
-            <View style={styles.button}>
-              <Text style={styles.buttonIcon}>✓</Text>
-            </View>
-            <Text style={styles.buttonLabel}>To Do</Text>
-          </View>
-          <View style={styles.buttonGroup}>
-            <View style={styles.button}>
-              <Text style={styles.buttonIcon}>📝</Text>
-            </View>
-            <Text style={styles.buttonLabel}>Memo</Text>
-          </View>
-        </View>
+        {/* Favorite Buttons - Gray Bezel Bottom */}
+        <FavoriteButtons />
       </View>
+
+      {/* App Picker Modal */}
+      <AppPickerModal
+        visible={isAppPickerOpen}
+        availableApps={AVAILABLE_APPS}
+        onSelect={handleAppSelect}
+        onClose={handleAppPickerClose}
+        theme={PALM_THEMES[currentTheme]}
+      />
+
+      {/* Custom Mode Modal */}
+      <CustomModeModal
+        visible={isCustomModeModalOpen}
+        modeName={editingModeName || ''}
+        modeApps={editingModeApps}
+        theme={PALM_THEMES[currentTheme]}
+        onSave={handleSaveCustomMode}
+        onDelete={editingModeName ? () => handleDeleteCustomMode(editingModeName) : undefined}
+        isEditingExisting={!!editingModeName}
+        onClose={() => {
+          setIsCustomModeModalOpen(false);
+          setEditingModeName(null);
+        }}
+        onAppPress={(app, rowIndex, colIndex) => {
+          // Handled in CustomModeModal
+        }}
+        onIconLongPress={(app, rowIndex, colIndex) => {
+          setIsEditMode(true);
+          setSelectedIconForSwap(null);
+        }}
+        onEmptySlotPress={(rowIndex, colIndex) => {
+          setSelectedSlot({ rowIndex, colIndex });
+          setIsAppPickerOpen(true);
+        }}
+        onDeleteIcon={(rowIndex, colIndex) => {
+          // Handled in CustomModeModal
+        }}
+        onChangeIcon={(rowIndex, colIndex) => {
+          setSelectedSlot({ rowIndex, colIndex });
+          setIsAppPickerOpen(true);
+        }}
+        isEditMode={isEditMode}
+        selectedIconForSwap={selectedIconForSwap}
+        onExitEditMode={() => {
+          setIsEditMode(false);
+          setSelectedIconForSwap(null);
+        }}
+        availableApps={AVAILABLE_APPS}
+        onAppSelect={(appLabel) => {
+          // Handled in CustomModeModal
+        }}
+        selectedSlot={selectedSlot}
+        isAppPickerOpen={isAppPickerOpen}
+        onAppPickerClose={handleAppPickerClose}
+      />
     </View>
   );
 }
@@ -230,13 +587,11 @@ export default function LauncherScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    width: SCREEN_WIDTH,
-    height: SCREEN_HEIGHT,
     backgroundColor: '#000000',
   },
   bezel: {
     flex: 1,
-    backgroundColor: '#6B6B6B',
+    backgroundColor: '#3A3A3A',
     paddingTop: 40,
     paddingBottom: 20,
     paddingHorizontal: 16,
@@ -266,223 +621,9 @@ const styles = StyleSheet.create({
   },
   screen: {
     flex: 1,
-    backgroundColor: '#9CBD5A',
     position: 'relative',
     opacity: 0.98,
     borderWidth: 2,
     borderColor: '#505050',
-  },
-  lcdStripeContainer: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    bottom: 0,
-    flexDirection: 'row',
-    pointerEvents: 'none',
-  },
-  lcdStripe: {
-    width: 2,
-    height: '100%',
-    position: 'absolute',
-  },
-  statusBar: {
-    height: 28,
-    paddingHorizontal: 12,
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    borderBottomWidth: 1,
-    borderBottomColor: '#6B8537',
-  },
-  batteryContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  batteryBody: {
-    width: 20,
-    height: 10,
-    borderWidth: 1,
-    borderColor: '#2B3D0F',
-    backgroundColor: '#9CBD5A',
-    justifyContent: 'center',
-    paddingHorizontal: 1,
-  },
-  batteryFill: {
-    flex: 1,
-    backgroundColor: '#2B3D0F',
-  },
-  batteryTip: {
-    width: 2,
-    height: 6,
-    backgroundColor: '#2B3D0F',
-    marginLeft: -1,
-  },
-  statusTime: {
-    fontFamily: 'PressStart2P_400Regular',
-    fontSize: 8,
-    color: '#2B3D0F',
-  },
-  appsGridContainer: {
-    flex: 1,
-    paddingTop: 24,
-    paddingHorizontal: 16,
-    justifyContent: 'center',
-  },
-  appsGridBox: {
-    backgroundColor: '#9CBD5A',
-    borderRadius: 12,
-    borderWidth: 2,
-    borderColor: '#1A2509', // Darker border
-    padding: 16,
-    position: 'relative',
-    overflow: 'hidden',
-  },
-  pixelEffectOverlay: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    bottom: 0,
-    backgroundColor: 'rgba(43, 61, 15, 0.05)',
-    opacity: 0.6,
-    pointerEvents: 'none',
-  },
-  appsGrid: {
-    justifyContent: 'space-evenly',
-  },
-  appRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-around',
-  },
-  appContainer: {
-    width: 90,
-    alignItems: 'center',
-  },
-  iconCircle: {
-    width: 80,
-    height: 80,
-    borderRadius: 40,
-    backgroundColor: '#2B3D0F', // Darker green background for white icons
-    justifyContent: 'center',
-    alignItems: 'center',
-    borderWidth: 2,
-    borderColor: '#1A2509', // Even darker border
-  },
-  appLabel: {
-    fontFamily: 'PressStart2P_400Regular',
-    fontSize: 8,
-    color: '#2B3D0F',
-    textAlign: 'center',
-    lineHeight: 12,
-    marginTop: 10,
-  },
-  graffitiContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: 8,
-    paddingVertical: 16,
-    height: 200,
-  },
-  leftIcons: {
-    width: 64,
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    height: 180,
-    paddingVertical: 8,
-  },
-  rightIcons: {
-    width: 64,
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    height: 180,
-    paddingVertical: 8,
-  },
-  sideIconCircle: {
-    width: 56,
-    height: 56,
-    borderRadius: 28,
-    borderWidth: 2,
-    borderColor: '#2B3D0F',
-    justifyContent: 'center',
-    alignItems: 'center',
-    backgroundColor: '#3D4A1F',
-  },
-  graffitiArea: {
-    flex: 1,
-    height: 180,
-    borderWidth: 2,
-    borderColor: '#6B8537',
-    backgroundColor: '#9CBD5A',
-    marginHorizontal: 8,
-    position: 'relative',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  graffitiLabelTopLeft: {
-    position: 'absolute',
-    top: 12,
-    left: 16,
-    fontFamily: 'PressStart2P_400Regular',
-    fontSize: 8,
-    color: '#6B8537',
-  },
-  graffitiLabelTopRight: {
-    position: 'absolute',
-    top: 12,
-    right: 16,
-    fontFamily: 'PressStart2P_400Regular',
-    fontSize: 8,
-    color: '#6B8537',
-  },
-  cursor: {
-    width: 10,
-    height: 14,
-    backgroundColor: '#2B3D0F',
-  },
-  buttonsArea: {
-    flexDirection: 'row',
-    justifyContent: 'space-around',
-    alignItems: 'center',
-    paddingVertical: 20,
-    paddingHorizontal: 12,
-  },
-  buttonGroup: {
-    alignItems: 'center',
-  },
-  button: {
-    width: 56,
-    height: 56,
-    borderRadius: 28,
-    backgroundColor: '#3A3A3A',
-    borderWidth: 2,
-    borderColor: '#505050',
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginBottom: 6,
-  },
-  buttonScroll: {
-    width: 36,
-    height: 70,
-    backgroundColor: '#3A3A3A',
-    borderWidth: 2,
-    borderColor: '#505050',
-    borderRadius: 18,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  buttonIcon: {
-    fontSize: 22,
-    color: '#6B8537',
-  },
-  scrollText: {
-    fontSize: 28,
-    color: '#6B8537',
-    fontWeight: 'bold',
-  },
-  buttonLabel: {
-    fontFamily: 'PressStart2P_400Regular',
-    fontSize: 6,
-    color: '#CCCCCC',
   },
 });
