@@ -4,46 +4,28 @@ import React from 'react';
 import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 
 interface FavoriteButtonsProps {
-  onDatePress?: () => void;
-  onAddressPress?: () => void;
-  onSyncPress?: () => void;
+  onHomePress?: () => void;
   onTodoPress?: () => void;
-  onMemoPress?: () => void;
+  onPetPress?: () => void;
+  onMenuPress?: () => void;
 }
 
 export function FavoriteButtons({
-  onDatePress,
-  onAddressPress,
-  onSyncPress,
+  onHomePress,
   onTodoPress,
-  onMemoPress,
+  onPetPress,
+  onMenuPress,
 }: FavoriteButtonsProps) {
   const router = useRouter();
   const [fontsLoaded] = useFonts({
     PressStart2P_400Regular,
   });
 
-  const handleDatePress = () => {
-    if (onDatePress) {
-      onDatePress();
+  const handleHomePress = () => {
+    if (onHomePress) {
+      onHomePress();
     } else {
-      console.log('Open Date Book');
-    }
-  };
-
-  const handleAddressPress = () => {
-    if (onAddressPress) {
-      onAddressPress();
-    } else {
-      console.log('Open Address');
-    }
-  };
-
-  const handleSyncPress = () => {
-    if (onSyncPress) {
-      onSyncPress();
-    } else {
-      console.log('Open Sync');
+      router.push('/' as any);
     }
   };
 
@@ -55,11 +37,19 @@ export function FavoriteButtons({
     }
   };
 
-  const handleMemoPress = () => {
-    if (onMemoPress) {
-      onMemoPress();
+  const handlePetPress = () => {
+    if (onPetPress) {
+      onPetPress();
     } else {
-      console.log('Open Memo Pad');
+      console.log('Open Pet');
+    }
+  };
+
+  const handleMenuPress = () => {
+    if (onMenuPress) {
+      onMenuPress();
+    } else {
+      console.log('Open Menu');
     }
   };
 
@@ -71,33 +61,13 @@ export function FavoriteButtons({
     <View style={styles.buttonsArea}>
       <TouchableOpacity
         style={styles.buttonGroup}
-        onPress={handleDatePress}
+        onPress={handleHomePress}
         activeOpacity={0.7}
       >
         <View style={styles.button}>
-          <Text style={styles.buttonIcon}>📅</Text>
+          <Text style={styles.buttonIcon}>🏠</Text>
         </View>
-        <Text style={styles.buttonLabel}>Date</Text>
-      </TouchableOpacity>
-      <TouchableOpacity
-        style={styles.buttonGroup}
-        onPress={handleAddressPress}
-        activeOpacity={0.7}
-      >
-        <View style={styles.button}>
-          <Text style={styles.buttonIcon}>📇</Text>
-        </View>
-        <Text style={styles.buttonLabel}>Address</Text>
-      </TouchableOpacity>
-      <TouchableOpacity
-        style={styles.buttonGroup}
-        onPress={handleSyncPress}
-        activeOpacity={0.7}
-      >
-        <View style={styles.button}>
-          <Text style={styles.buttonIcon}>↕</Text>
-        </View>
-        <Text style={styles.buttonLabel}>Sync</Text>
+        <Text style={styles.buttonLabel}>HOME</Text>
       </TouchableOpacity>
       <TouchableOpacity
         style={styles.buttonGroup}
@@ -107,17 +77,27 @@ export function FavoriteButtons({
         <View style={styles.button}>
           <Text style={styles.buttonIcon}>✓</Text>
         </View>
-        <Text style={styles.buttonLabel}>To Do</Text>
+        <Text style={styles.buttonLabel}>TO DO</Text>
       </TouchableOpacity>
       <TouchableOpacity
         style={styles.buttonGroup}
-        onPress={handleMemoPress}
+        onPress={handlePetPress}
         activeOpacity={0.7}
       >
         <View style={styles.button}>
-          <Text style={styles.buttonIcon}>📝</Text>
+          <Text style={styles.buttonIcon}>🐾</Text>
         </View>
-        <Text style={styles.buttonLabel}>Memo</Text>
+        <Text style={styles.buttonLabel}>PET</Text>
+      </TouchableOpacity>
+      <TouchableOpacity
+        style={styles.buttonGroup}
+        onPress={handleMenuPress}
+        activeOpacity={0.7}
+      >
+        <View style={styles.button}>
+          <Text style={styles.buttonIcon}>☰</Text>
+        </View>
+        <Text style={styles.buttonLabel}>MENU</Text>
       </TouchableOpacity>
     </View>
   );

@@ -1,8 +1,12 @@
+import { PressStart2P_400Regular, useFonts } from '@expo-google-fonts/press-start-2p';
 import { useRouter } from 'expo-router';
 import React, { useEffect, useState } from 'react';
 import { Alert, FlatList, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { FavoriteButtons } from '../components/FavoriteButtons';
 import { PalmButton } from '../components/PalmButton';
 import { PalmTextInput } from '../components/PalmTextInput';
+import { PALM_THEMES } from '../constants/palmThemes';
+import { useTheme } from '../contexts/ThemeContext';
 import { exportTasksToCalendar } from '../services/calendarService';
 import { formatDate } from '../services/dateParser';
 import { playTaskComplete } from '../services/soundService';
@@ -15,6 +19,14 @@ export const TaskListScreen: React.FC = () => {
   const [isLoading, setIsLoading] = useState(true);
   const [editingTask, setEditingTask] = useState<Task | null>(null);
   const [editText, setEditText] = useState('');
+  
+  const { currentTheme } = useTheme();
+  
+  const [fontsLoaded] = useFonts({
+    PressStart2P_400Regular,
+  });
+  
+  const theme = PALM_THEMES[currentTheme];
 
   // Load tasks on mount
   useEffect(() => {
@@ -118,77 +130,128 @@ export const TaskListScreen: React.FC = () => {
     </TouchableOpacity>
   );
 
-  if (isLoading) {
+  if (isLoading || !fontsLoaded) {
     return (
-      <View style={styles.container}>
-        <View style={styles.header}>
-          <Text style={styles.headerText}>TASKS</Text>
-        </View>
-        <View style={styles.emptyState}>
-          <Text style={styles.emptyText}>LOADING...</Text>
+      <View style={styles.outerContainer}>
+        <View style={styles.bezel}>
+          <View style={styles.screen}>
+            <View style={styles.header}>
+              <Text style={styles.headerText}>TASKS</Text>
+            </View>
+            <View style={styles.emptyState}>
+              <Text style={styles.emptyText}>LOADING...</Text>
+            </View>
+          </View>
         </View>
       </View>
     );
   }
 
   return (
-    <View style={styles.container}>
-      {/* LCD grain overlay */}
-      <View style={styles.lcdGrain} />
-      
-      <View style={styles.header}>
-        <TouchableOpacity 
-          style={styles.aboutButton}
-          onPress={() => router.push('/about' as any)}
-        >
-          <Text style={styles.aboutButtonText}>?</Text>
-        </TouchableOpacity>
-        <Text style={styles.headerText}>TASKS</Text>
-      </View>
-
-      <FlatList
-        data={tasks}
-        renderItem={renderTask}
-        keyExtractor={item => item.id}
-        style={styles.list}
-        ListEmptyComponent={
-          <View style={styles.emptyState}>
-            <Text style={styles.emptyText}>NO TASKS</Text>
-            <Text style={styles.emptySubtext}>TAP NEW TASK TO ADD</Text>
+    <View style={styles.outerContainer}>
+      {/* Bezel with Palm Pilot branding */}
+      <View style={styles.bezel}>
+        <View style={styles.bezelTop}>
+          <Text style={styles.palmPilotText}>Palm Pilot</Text>
+          <View style={styles.logo3Com}>
+            <Text style={styles.logo3ComText}>3Com</Text>
           </View>
-        }
-      />
+        </View>
 
-      <View style={styles.footer}>
-        <PalmButton 
-          title="SYNC" 
-          onPress={handleSync} 
-        />
-        <View style={styles.buttonSpacer} />
-        <PalmButton 
-          title="NEW TASK" 
-          onPress={() => router.push('/record')} 
-        />
+        {/* LCD Screen */}
+        <View style={[styles.screen, { backgroundColor: theme.screenBackground }]}>
+          {/* LCD grain overlay */}
+          <View style={styles.lcdGrain} />
+          
+          <View style={[styles.header, { backgroundColor: theme.headerBackground, borderBottomColor: theme.headerBorder }]}>
+            <Text style={[styles.headerText, { color: theme.headerText }]}>TASKS</Text>
+          </View>
+
+          <FlatList
+            data={tasks}
+            renderItem={renderTask}
+            keyExtractor={item => item.id}
+            style={styles.list}
+            ListEmptyComponent={
+              <View style={styles.emptyState}>
+                <Text style={[styles.emptyText, { color: theme.iconText }]}>NO TASKS</Text>
+                <Text style={[styles.emptySubtext, { color: theme.iconText }]}>TAP NEW TASK TO ADD</Text>
+              </View>
+            }
+          />
+
+          <View style={[styles.footer, { borderTopColor: theme.headerBorder }]}>
+            <PalmButton 
+              title="SYNC" 
+              onPress={handleSync} 
+            />
+            <View style={styles.buttonSpacer} />
+            <PalmButton 
+              title="NEW TASK" 
+              onPress={() => router.push('/record')} 
+            />
+          </View>
+
+          <PalmTextInput
+            visible={editingTask !== null}
+            title="EDIT TASK"
+            value={editText}
+            onChangeText={setEditText}
+            onSave={saveEditTask}
+            onCancel={cancelEditTask}
+          />
+        </View>
+
+        {/* Favorite Buttons - Gray Bezel Bottom */}
+        <FavoriteButtons />
       </View>
-
-      <PalmTextInput
-        visible={editingTask !== null}
-        title="EDIT TASK"
-        value={editText}
-        onChangeText={setEditText}
-        onSave={saveEditTask}
-        onCancel={cancelEditTask}
-      />
     </View>
   );
 };
 
 const styles = StyleSheet.create({
-  container: {
+  outerContainer: {
     flex: 1,
-    backgroundColor: '#9CBD5A', // Changed from '#FFFFFF'
-    position: 'relative',
+    backgroundColor: '#000000',
   },
+  bezel: {
+    flex: 1,
+    backgroundColor: '#3A3A3A',
+    paddingTop: 40,
+    paddingBottom: 20,
+    paddingHorizontal: 16,
+  },
+  bezelTop: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 16,
+    paddingHorizontal: 8,
+  },
+  palmPilotText: {
+    fontFamily: 'PressStart2P_400Regular',
+    fontSize: 10,
+    color: '#FFFFFF',
+  },
+  logo3Com: {
+    backgroundColor: '#FFFFFF',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 2,
+  },
+  logo3ComText: {
+    fontFamily: 'PressStart2P_400Regular',
+    fontSize: 8,
+    color: '#000000',
+  },
+  screen: {
+    flex: 1,
+    position: 'relative',
+    opacity: 0.98,
+    borderWidth: 2,
+    borderColor: '#505050',
+  },
+
   header: {
     height: 60,
     flexDirection: 'row',
@@ -199,26 +262,8 @@ const styles = StyleSheet.create({
     position: 'relative',
   },
   headerText: {
-    fontFamily: 'Courier',
-    fontSize: 14,
-    fontWeight: 'bold',
-    color: '#000000',
-  },
-  aboutButton: {
-    position: 'absolute',
-    right: 16,
-    width: 30,
-    height: 30,
-    borderWidth: 2,
-    borderColor: '#000000',
-    borderRadius: 15,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  aboutButtonText: {
-    fontFamily: 'Courier',
-    fontSize: 18,
-    fontWeight: 'bold',
+    fontFamily: 'PressStart2P_400Regular',
+    fontSize: 12,
     color: '#000000',
   },
   list: {
@@ -254,8 +299,8 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   taskText: {
-    fontFamily: 'Courier',
-    fontSize: 14,
+    fontFamily: 'PressStart2P_400Regular',
+    fontSize: 10,
     color: '#000000',
     flex: 1,
   },
@@ -264,8 +309,8 @@ const styles = StyleSheet.create({
     color: '#999999',
   },
   taskDate: {
-    fontFamily: 'Courier',
-    fontSize: 12,
+    fontFamily: 'PressStart2P_400Regular',
+    fontSize: 8,
     color: '#666666',
     marginLeft: 8,
   },
@@ -274,14 +319,13 @@ const styles = StyleSheet.create({
     marginTop: 100,
   },
   emptyText: {
-    fontFamily: 'Courier',
-    fontSize: 14,
-    fontWeight: 'bold',
+    fontFamily: 'PressStart2P_400Regular',
+    fontSize: 10,
     color: '#000000',
   },
   emptySubtext: {
-    fontFamily: 'Courier',
-    fontSize: 14,
+    fontFamily: 'PressStart2P_400Regular',
+    fontSize: 8,
     color: '#000000',
     marginTop: 8,
   },

@@ -1,11 +1,9 @@
 import { PressStart2P_400Regular, useFonts } from '@expo-google-fonts/press-start-2p';
-import React, { useRef, useState } from 'react';
-import { Animated, Dimensions, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import React, { useState } from 'react';
+import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { PalmTheme } from '../constants/palmThemes';
 
-const { width: SCREEN_WIDTH } = Dimensions.get('window');
-
-interface PixelKeyboardProps {
+interface MiniKeyboardProps {
   visible: boolean;
   theme: PalmTheme;
   onKeyPress: (key: string) => void;
@@ -15,7 +13,7 @@ interface PixelKeyboardProps {
   onSpace: () => void;
 }
 
-export function PixelKeyboard({
+export function MiniKeyboard({
   visible,
   theme,
   onKeyPress,
@@ -23,45 +21,24 @@ export function PixelKeyboard({
   onBackspace,
   onEnter,
   onSpace,
-}: PixelKeyboardProps) {
+}: MiniKeyboardProps) {
   const [fontsLoaded] = useFonts({
     PressStart2P_400Regular,
   });
   const [isShift, setIsShift] = useState(false);
   const [keyboardMode, setKeyboardMode] = useState<'letters' | 'numbers' | 'symbols'>('letters');
 
-  if (!fontsLoaded) {
+  if (!fontsLoaded || !visible) {
     return null;
   }
 
   const handleKeyPress = (key: string) => {
     onKeyPress(key);
-    // Auto-disable shift after one character (like mobile keyboards)
     if (isShift && key.length === 1) {
       setIsShift(false);
     }
   };
 
-  const toggleShift = () => {
-    setIsShift(!isShift);
-  };
-
-  const switchToNumbers = () => {
-    setKeyboardMode('numbers');
-    setIsShift(false);
-  };
-
-  const switchToLetters = () => {
-    setKeyboardMode('letters');
-    setIsShift(false);
-  };
-
-  const switchToSymbols = () => {
-    setKeyboardMode('symbols');
-    setIsShift(false);
-  };
-
-  // iPhone-like keyboard layouts
   const letterRows = [
     ['q', 'w', 'e', 'r', 't', 'y', 'u', 'i', 'o', 'p'],
     ['a', 's', 'd', 'f', 'g', 'h', 'j', 'k', 'l'],
@@ -103,29 +80,9 @@ export function PixelKeyboard({
     isReturn?: boolean;
     isExtraLarge?: boolean;
   }) => {
-    const pressAnim = useRef(new Animated.Value(0)).current;
-
-    const handlePressIn = () => {
-      Animated.spring(pressAnim, {
-        toValue: 1,
-        useNativeDriver: true,
-        tension: 300,
-        friction: 10,
-      }).start();
-    };
-
-    const handlePressOut = () => {
-      Animated.spring(pressAnim, {
-        toValue: 0,
-        useNativeDriver: true,
-        tension: 300,
-        friction: 10,
-      }).start();
-    };
-
     const handlePress = () => {
       if (keyName === 'SHIFT') {
-        toggleShift();
+        setIsShift(!isShift);
       } else if (keyName === 'BACKSPACE') {
         onBackspace();
       } else if (keyName === 'RETURN' || keyName === 'ENTER') {
@@ -133,12 +90,15 @@ export function PixelKeyboard({
       } else if (keyName === 'SPACE') {
         onSpace();
       } else if (keyName === '123') {
-        switchToNumbers();
+        setKeyboardMode('numbers');
+        setIsShift(false);
       } else if (keyName === 'ABC') {
-        switchToLetters();
+        setKeyboardMode('letters');
+        setIsShift(false);
       } else if (keyName === '#+=') {
-        switchToSymbols();
-      } else if (keyName === 'MIC' || keyName === 'EMOJI') {
+        setKeyboardMode('symbols');
+        setIsShift(false);
+      } else if (keyName === 'EMOJI') {
         // Placeholder for future functionality
         return;
       } else {
@@ -146,20 +106,8 @@ export function PixelKeyboard({
       }
     };
 
-    const translateY = pressAnim.interpolate({
-      inputRange: [0, 1],
-      outputRange: [0, 2],
-    });
-
-    const scale = pressAnim.interpolate({
-      inputRange: [0, 1],
-      outputRange: [1, 0.95],
-    });
-
     let displayText = keyName;
-    if (keyName === 'MIC') {
-      displayText = '🎤';
-    } else if (keyName === 'EMOJI') {
+    if (keyName === 'EMOJI') {
       displayText = '😀';
     } else if (keyName === 'BACKSPACE') {
       displayText = '⌫';
@@ -174,69 +122,53 @@ export function PixelKeyboard({
     }
 
     return (
-      <Animated.View
+      <TouchableOpacity
+        onPress={handlePress}
+        activeOpacity={0.6}
         style={[
+          styles.key,
+          isWide && styles.wideKey,
+          isSmallWide && styles.smallWideKey,
+          isLarge && styles.largeKey,
+          isMediumLarge && styles.mediumLargeKey,
+          isSpecial && styles.specialKey,
+          isEmoji && styles.emojiKey,
+          isMedium && styles.mediumKey,
+          isReturn && styles.returnKey,
+          isExtraLarge && styles.extraLargeKey,
           {
-            transform: [{ translateY }, { scale }],
+            backgroundColor: keyName === 'SHIFT' && isShift ? theme.dropdownActiveBackground : theme.gridBoxBackground,
+            borderTopColor: '#E0F0C8',
+            borderLeftColor: '#E0F0C8',
+            borderRightColor: theme.gridBoxBorder,
+            borderBottomColor: theme.gridBoxBorder,
           },
         ]}
       >
-        <TouchableOpacity
-          onPressIn={handlePressIn}
-          onPressOut={handlePressOut}
-          onPress={handlePress}
-          activeOpacity={0.6}
-          hitSlop={{ top: 5, bottom: 5, left: 5, right: 5 }}
-          style={[
-            styles.key,
-            isWide && styles.wideKey,
-            isSmallWide && styles.smallWideKey,
-            isLarge && styles.largeKey,
-            isMediumLarge && styles.mediumLargeKey,
-            isSpecial && styles.specialKey,
-            isEmoji && styles.emojiKey,
-            isMedium && styles.mediumKey,
-            isReturn && styles.returnKey,
-            isExtraLarge && styles.extraLargeKey,
-            {
-              backgroundColor: keyName === 'SHIFT' && isShift ? theme.dropdownActiveBackground : theme.gridBoxBackground,
-              // 3D effect: light top/left, dark bottom/right
-              borderTopColor: '#E0F0C8',
-              borderLeftColor: '#E0F0C8',
-              borderRightColor: theme.gridBoxBorder,
-              borderBottomColor: theme.gridBoxBorder,
-            },
-          ]}
-        >
-          {isEmoji ? (
-            <Text style={styles.emojiText}>{displayText}</Text>
-          ) : (
-            <Text
-              style={[
-                styles.keyText,
-                { color: theme.iconText },
-                isWide && styles.wideKeyText,
-                isSpecial && styles.specialKeyText,
-                isMedium && styles.mediumKeyText,
-                isReturn && styles.returnText,
-                isExtraLarge && styles.extraLargeKeyText,
-                keyName === 'BACKSPACE' && styles.backspaceText,
-              ]}
-            >
-              {displayText}
-            </Text>
-          )}
-        </TouchableOpacity>
-      </Animated.View>
+        {isEmoji ? (
+          <Text style={styles.emojiText}>{displayText}</Text>
+        ) : (
+          <Text
+            style={[
+              styles.keyText,
+              { color: theme.iconText },
+              isWide && styles.wideKeyText,
+              isSpecial && styles.specialKeyText,
+              isMedium && styles.mediumKeyText,
+              isReturn && styles.returnText,
+              isExtraLarge && styles.extraLargeKeyText,
+              keyName === 'BACKSPACE' && styles.backspaceText,
+            ]}
+          >
+            {displayText}
+          </Text>
+        )}
+      </TouchableOpacity>
     );
   };
 
-  if (!visible) {
-    return null;
-  }
-
   return (
-    <View style={[styles.keyboardContainer, { backgroundColor: theme.screenBackground }]}>
+    <View style={[styles.keyboardContainer, { backgroundColor: theme.screenBackground, borderColor: theme.gridBoxBorder }]}>
       {/* Header */}
       <View style={[styles.keyboardHeader, { backgroundColor: theme.headerBackground, borderBottomColor: theme.headerBorder }]}>
         <Text style={[styles.keyboardTitle, { color: theme.headerText }]}>KEYBOARD</Text>
@@ -252,39 +184,17 @@ export function PixelKeyboard({
       <View style={styles.keyboard}>
         {keyboardMode === 'letters' ? (
           <>
-            {/* Letter Rows - Aligned vertically */}
+            {/* Letter Rows */}
             {letterRows.map((row, rowIndex) => {
-              // Alignment strategy:
-              // - Q, A, Shift, 123 should all have their LEFT EDGES at the same X position
-              // - P, L, Backspace, Return should all have their RIGHT EDGES at the same X position
-              // 
-              // Key structure: margin(3px) + key(width) + margin(3px)
-              // - Regular: 3 + 32 + 3 = 38px total space
-              // - Wide (Shift/Backspace): 3 + 56 + 3 = 62px total space
-              //
-              // Row 2 reference: Shift(62) + 7 keys(266) + Backspace(62) = 390px
-              // All rows should match this total width
-              
-              let leftSpacer = 0;
               let rightSpacer = 0;
               
               if (rowIndex === 0) {
-                // Q row: 10 keys = 380px total
-                // Q's left edge aligns with Shift's left edge (both at paddingLeft + margin)
-                // Need right spacer to match backspace: 62px total space
                 rightSpacer = 62;
-              } else if (rowIndex === 1) {
-                // A row: 9 keys = 342px total
-                // Center aligned - no spacers needed
-                leftSpacer = 0;
-                rightSpacer = 0;
               }
-              // Row 2 (Z row) already has Shift and Backspace, no spacers needed
               
               return (
                 <View key={rowIndex} style={[styles.keyRow, rowIndex === 1 && { justifyContent: 'center', paddingLeft: 8 }]}>
                   {rowIndex === 2 && <KeyButton keyName="SHIFT" isSmallWide />}
-                  {leftSpacer > 0 && <View style={{ width: leftSpacer }} />}
                   {row.map((key) => (
                     <KeyButton key={key} keyName={isShift ? key.toUpperCase() : key} />
                   ))}
@@ -294,7 +204,7 @@ export function PixelKeyboard({
               );
             })}
 
-            {/* Bottom Row - iPhone style */}
+            {/* Bottom Row */}
             <View style={styles.bottomRow}>
               <KeyButton keyName="123" isMedium />
               <KeyButton keyName="EMOJI" isEmoji isMedium />
@@ -304,32 +214,16 @@ export function PixelKeyboard({
           </>
         ) : keyboardMode === 'numbers' ? (
           <>
-            {/* Number Rows - Aligned like alphabet keyboard */}
+            {/* Number Rows */}
             {numberRows.map((row, rowIndex) => {
-              // Align numbers keyboard similar to alphabet keyboard
-              // First row has backspace on right, needs left alignment
-              // Second and third rows need proper spacing
-              
-              let leftSpacer = 0;
               let rightSpacer = 0;
               
-              if (rowIndex === 0) {
-                // First row: numbers 1-0 + backspace
-                // Align left with other keyboards, backspace on right
-                rightSpacer = 0; // backspace is already there
-              } else if (rowIndex === 1) {
-                // Second row: symbols, align left
-                leftSpacer = 0;
-                rightSpacer = 62; // match backspace width
-              } else if (rowIndex === 2) {
-                // Third row: #+=, ., ,, ?, !, ', and backspace (all large keys)
-                leftSpacer = 0;
-                rightSpacer = 0; // backspace is already there
+              if (rowIndex === 1) {
+                rightSpacer = 62;
               }
               
               return (
                 <View key={rowIndex} style={styles.keyRow}>
-                  {leftSpacer > 0 && <View style={{ width: leftSpacer }} />}
                   {rowIndex === 2 ? (
                     <>
                       <KeyButton keyName="#+=" isLarge />
@@ -341,16 +235,18 @@ export function PixelKeyboard({
                       <KeyButton keyName="BACKSPACE" isLarge />
                     </>
                   ) : (
-                    row.map((key) => (
-                      <KeyButton key={key} keyName={key} />
-                    ))
+                    <>
+                      {row.map((key) => (
+                        <KeyButton key={key} keyName={key} />
+                      ))}
+                      {rightSpacer > 0 && <View style={{ width: rightSpacer }} />}
+                    </>
                   )}
-                  {rightSpacer > 0 && <View style={{ width: rightSpacer }} />}
                 </View>
               );
             })}
 
-            {/* Bottom Row - Numbers mode (matching alphabet keyboard) */}
+            {/* Bottom Row */}
             <View style={styles.bottomRow}>
               <KeyButton keyName="ABC" isMedium />
               <KeyButton keyName="EMOJI" isEmoji isMedium />
@@ -360,17 +256,15 @@ export function PixelKeyboard({
           </>
         ) : (
           <>
-            {/* Symbol Rows - Aligned like alphabet keyboard */}
+            {/* Symbol Rows */}
             {symbolRows.map((row, rowIndex) => {
               return (
                 <View key={rowIndex} style={styles.keyRow}>
                   {rowIndex === 2 ? (
-                    // Third row with larger keys (1.5x size)
                     row.map((key) => (
                       <KeyButton key={key} keyName={key} isExtraLarge />
                     ))
                   ) : (
-                    // First and second rows with normal keys
                     row.map((key) => (
                       <KeyButton key={key} keyName={key} />
                     ))
@@ -379,7 +273,7 @@ export function PixelKeyboard({
               );
             })}
 
-            {/* Bottom Row - Symbols mode (matching alphabet keyboard) */}
+            {/* Bottom Row */}
             <View style={styles.bottomRow}>
               <KeyButton keyName="123" isMedium />
               <KeyButton keyName="EMOJI" isEmoji isMedium />
@@ -395,48 +289,40 @@ export function PixelKeyboard({
 
 const styles = StyleSheet.create({
   keyboardContainer: {
-    position: 'absolute',
-    bottom: 0,
-    left: 0,
-    right: 0,
     borderTopWidth: 2,
-    borderLeftWidth: 2,
-    borderRightWidth: 2,
-    borderColor: '#6B8537',
-    borderTopColor: 'transparent',
     zIndex: 1002,
   },
   keyboardHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    paddingHorizontal: 16,
-    paddingVertical: 12,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
     borderBottomWidth: 2,
   },
   keyboardTitle: {
     fontFamily: 'PressStart2P_400Regular',
-    fontSize: 10,
+    fontSize: 8,
   },
   closeButton: {
-    width: 32,
-    height: 32,
+    width: 24,
+    height: 24,
     justifyContent: 'center',
     alignItems: 'center',
     borderWidth: 2,
+    borderRadius: 2,
   },
   closeButtonText: {
-    fontSize: 18,
+    fontSize: 14,
     fontWeight: 'bold',
   },
   keyboard: {
-    paddingVertical: 8,
+    paddingVertical: 6,
     paddingHorizontal: 4,
-    maxHeight: 300,
   },
   keyRow: {
     flexDirection: 'row',
-    marginBottom: 4,
+    marginBottom: 3,
     justifyContent: 'flex-start',
     alignItems: 'center',
     paddingLeft: 0,
@@ -445,7 +331,7 @@ const styles = StyleSheet.create({
   },
   bottomRow: {
     flexDirection: 'row',
-    marginBottom: 6,
+    marginBottom: 4,
     justifyContent: 'flex-start',
     alignItems: 'center',
     paddingLeft: 0,
@@ -453,94 +339,87 @@ const styles = StyleSheet.create({
     width: '100%',
   },
   key: {
-    width: 32,
-    height: 44,
+    width: 28,
+    height: 38,
     borderWidth: 2,
-    borderRadius: 5,
+    borderRadius: 4,
     justifyContent: 'center',
     alignItems: 'center',
-    marginHorizontal: 3,
-    // 3D elevated effect
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.3,
-    shadowRadius: 2,
-    elevation: 3,
-    // Border creates 3D effect
+    marginHorizontal: 2,
     borderTopWidth: 2,
     borderRightWidth: 2,
     borderBottomWidth: 2,
     borderLeftWidth: 2,
   },
   wideKey: {
-    width: 56,
-    marginHorizontal: 3,
+    width: 48,
+    marginHorizontal: 2,
   },
   smallWideKey: {
-    width: 51,
-    marginHorizontal: 3,
+    width: 44,
+    marginHorizontal: 2,
   },
   largeKey: {
-    width: 52,
-    marginHorizontal: 3,
+    width: 45,
+    marginHorizontal: 2,
   },
   mediumLargeKey: {
-    width: 45,
-    marginHorizontal: 3,
+    width: 38,
+    marginHorizontal: 2,
   },
   specialKey: {
     flex: 2,
-    minWidth: 180,
-    maxWidth: 250,
+    minWidth: 150,
+    maxWidth: 220,
     marginHorizontal: 2,
   },
   emojiKey: {
-    width: 36,
-    marginHorizontal: 3,
+    width: 32,
+    marginHorizontal: 2,
   },
   mediumKey: {
-    width: 42,
-    marginHorizontal: 3,
+    width: 36,
+    marginHorizontal: 2,
   },
   returnKey: {
     flex: 1,
-    minWidth: 95,
-    maxWidth: 135,
+    minWidth: 80,
+    maxWidth: 115,
     marginHorizontal: 2,
   },
   extraLargeKey: {
-    width: 48,
-    height: 44,
-    marginHorizontal: 3,
+    width: 42,
+    height: 38,
+    marginHorizontal: 2,
   },
   keyText: {
     fontFamily: 'PressStart2P_400Regular',
-    fontSize: 11,
+    fontSize: 9,
     textAlign: 'center',
-    lineHeight: 13,
+    lineHeight: 11,
   },
   wideKeyText: {
-    fontSize: 9,
-  },
-  specialKeyText: {
     fontSize: 8,
   },
+  specialKeyText: {
+    fontSize: 7,
+  },
   mediumKeyText: {
-    fontSize: 10,
+    fontSize: 8,
   },
   returnText: {
+    fontSize: 16,
+    lineHeight: 20,
+  },
+  backspaceText: {
     fontSize: 18,
     lineHeight: 22,
   },
-  backspaceText: {
-    fontSize: 20,
-    lineHeight: 24,
-  },
   emojiText: {
-    fontSize: 20,
-    lineHeight: 24,
+    fontSize: 18,
+    lineHeight: 22,
   },
   extraLargeKeyText: {
-    fontSize: 13,
+    fontSize: 11,
   },
 });

@@ -10,7 +10,9 @@ import { FavoriteButtons } from '../components/FavoriteButtons';
 import { GraffitiArea } from '../components/GraffitiArea';
 import { HeaderBar } from '../components/HeaderBar';
 import { LCDStripeEffect } from '../components/LCDStripeEffect';
+import { PixelAlert } from '../components/PixelAlert';
 import { PALM_THEMES, Theme } from '../constants/palmThemes';
+import { useTheme } from '../contexts/ThemeContext';
 
 interface AppIcon {
   label: string;
@@ -135,16 +137,16 @@ const MODE_APPS: Record<Mode, AppIconOrEmpty[][]> = {
 export default function LauncherScreen() {
   const router = useRouter();
   const [cursorVisible, setCursorVisible] = useState(true);
-  const [currentMode, setCurrentMode] = useState<Mode>('Work');
-  const [currentTheme, setCurrentTheme] = useState<Theme>('Dark Blue');
   const [isAppPickerOpen, setIsAppPickerOpen] = useState(false);
   const [selectedSlot, setSelectedSlot] = useState<{ rowIndex: number; colIndex: number } | null>(null);
   const [modeApps, setModeApps] = useState<Record<Mode, AppIconOrEmpty[][]>>(MODE_APPS);
   const [isEditMode, setIsEditMode] = useState(false);
   const [selectedIconForSwap, setSelectedIconForSwap] = useState<{ rowIndex: number; colIndex: number } | null>(null);
-  const [customModes, setCustomModes] = useState<Record<string, AppIconOrEmpty[][]>>({});
   const [isCustomModeModalOpen, setIsCustomModeModalOpen] = useState(false);
   const [editingModeName, setEditingModeName] = useState<string | null>(null);
+  const [duplicateAlert, setDuplicateAlert] = useState<{ visible: boolean; appLabel: string; onConfirm: () => void } | null>(null);
+  
+  const { currentTheme, setTheme, currentMode, setMode, customModes, saveCustomMode, deleteCustomMode } = useTheme();
 
   const [fontsLoaded] = useFonts({
     PressStart2P_400Regular,
@@ -215,10 +217,7 @@ export default function LauncherScreen() {
           
           // Update in the appropriate state (custom modes or default modes)
           if (customModes[currentMode]) {
-            setCustomModes((prev) => ({
-              ...prev,
-              [currentMode]: updateApps(prev[currentMode]),
-            }));
+            saveCustomMode(currentMode, updateApps(customModes[currentMode]));
           } else {
             setModeApps((prev) => ({
               ...prev,
@@ -262,10 +261,7 @@ export default function LauncherScreen() {
     
     // Update in the appropriate state (custom modes or default modes)
     if (customModes[currentMode]) {
-      setCustomModes((prev) => ({
-        ...prev,
-        [currentMode]: updateApps(prev[currentMode]),
-      }));
+      saveCustomMode(currentMode, updateApps(customModes[currentMode]));
     } else {
       setModeApps((prev) => ({
         ...prev,
@@ -294,10 +290,10 @@ export default function LauncherScreen() {
     if (selectedSlot) {
       const { rowIndex, colIndex } = selectedSlot;
       
-      // Check if app already exists in this mode (excluding the current slot if it's being changed)
+      // Check if app already exists in this mode (excluding the current slot)
       const currentApps = allModeApps[currentMode] || [];
-      let swapRowIndex: number | null = null;
-      let swapColIndex: number | null = null;
+      let existingRowIndex: number | null = null;
+      let existingColIndex: number | null = null;
       
       currentApps.forEach((row, rIdx) => {
         row.forEach((app, cIdx) => {
@@ -306,70 +302,51 @@ export default function LauncherScreen() {
             return;
           }
           if (app !== null && app.label === appLabel) {
-            swapRowIndex = rIdx;
-            swapColIndex = cIdx;
+            existingRowIndex = rIdx;
+            existingColIndex = cIdx;
           }
         });
       });
 
-      // If app exists, swap the two icons
-      if (swapRowIndex !== null && swapColIndex !== null) {
-        const targetRowIndex = swapRowIndex;
-        const targetColIndex = swapColIndex;
-        
+      const placeApp = () => {
         const updateApps = (apps: AppIconOrEmpty[][]) => {
-          const newModeApps = [...apps];
-          const currentRow = [...newModeApps[rowIndex]];
-          const currentApp = currentRow[colIndex];
-          const swapRow = [...newModeApps[targetRowIndex]];
-          const newApp = { label: appLabel, route: appLabel === 'TO DO LIST' ? '/tasks' : undefined };
+          const newModeApps = apps.map(row => [...row]); // Deep copy
           
-          currentRow[colIndex] = newApp;
-          swapRow[targetColIndex] = currentApp;
+          // Place app in new location
+          newModeApps[rowIndex][colIndex] = { 
+            label: appLabel, 
+            route: appLabel === 'TO DO LIST' ? '/tasks' : undefined 
+          };
           
-          newModeApps[rowIndex] = currentRow;
-          newModeApps[targetRowIndex] = swapRow;
           return newModeApps;
         };
         
         // Update in the appropriate state (custom modes or default modes)
         if (customModes[currentMode]) {
-          setCustomModes((prev) => ({
-            ...prev,
-            [currentMode]: updateApps(prev[currentMode]),
-          }));
+          saveCustomMode(currentMode, updateApps(customModes[currentMode]));
         } else {
           setModeApps((prev) => ({
             ...prev,
             [currentMode]: updateApps(prev[currentMode] || []),
           }));
         }
-      } else {
-        // Add or update the app in the selected slot (new app, no swap needed)
-        const updateApps = (apps: AppIconOrEmpty[][]) => {
-          const newModeApps = [...apps];
-          const newRow = [...newModeApps[rowIndex]];
-          newRow[colIndex] = { label: appLabel, route: appLabel === 'TO DO LIST' ? '/tasks' : undefined };
-          newModeApps[rowIndex] = newRow;
-          return newModeApps;
-        };
-        
-        // Update in the appropriate state (custom modes or default modes)
-        if (customModes[currentMode]) {
-          setCustomModes((prev) => ({
-            ...prev,
-            [currentMode]: updateApps(prev[currentMode]),
-          }));
-        } else {
-          setModeApps((prev) => ({
-            ...prev,
-            [currentMode]: updateApps(prev[currentMode] || []),
-          }));
-        }
-      }
 
-      setIsAppPickerOpen(false);
-      setSelectedSlot(null);
+        setIsAppPickerOpen(false);
+        setSelectedSlot(null);
+      };
+
+      // If app already exists, show confirmation dialog
+      if (existingRowIndex !== null && existingColIndex !== null) {
+        setIsAppPickerOpen(false); // Close app picker before showing alert
+        setDuplicateAlert({
+          visible: true,
+          appLabel,
+          onConfirm: placeApp,
+        });
+      } else {
+        // App doesn't exist, just place it
+        placeApp();
+      }
     }
   };
 
@@ -380,7 +357,7 @@ export default function LauncherScreen() {
       setIsCustomModeModalOpen(true);
       return;
     }
-    setCurrentMode(mode);
+    setMode(mode);
     // Initialize mode apps if they don't exist
     if (!allModeApps[mode]) {
       if (MODE_APPS[mode as keyof typeof MODE_APPS]) {
@@ -394,31 +371,17 @@ export default function LauncherScreen() {
   
   const handleSaveCustomMode = (name: string, apps: AppIconOrEmpty[][]) => {
     if (editingModeName && editingModeName !== name) {
-      // Renaming mode - remove old name, add new
-      setCustomModes((prev) => {
-        const updated = { ...prev };
-        delete updated[editingModeName];
-        updated[name] = apps;
-        return updated;
-      });
-      // Also update modeApps if it was in the default modes
+      // Renaming mode - delete old, save new
+      deleteCustomMode(editingModeName);
+      saveCustomMode(name, apps);
       if (currentMode === editingModeName) {
-        setCurrentMode(name);
+        setMode(name);
       }
     } else {
       // New mode or same name
-      setCustomModes((prev) => ({
-        ...prev,
-        [name]: apps,
-      }));
+      saveCustomMode(name, apps);
       if (!editingModeName) {
-        setCurrentMode(name);
-      } else {
-        // Update the mode apps for the edited mode
-        setModeApps((prev) => ({
-          ...prev,
-          [name]: apps,
-        }));
+        setMode(name);
       }
     }
     setIsCustomModeModalOpen(false);
@@ -433,31 +396,25 @@ export default function LauncherScreen() {
   };
   
   const handleDeleteCustomMode = (modeName: string) => {
-    setCustomModes((prev) => {
-      const updated = { ...prev };
-      delete updated[modeName];
-      return updated;
-    });
+    deleteCustomMode(modeName);
     
     // If the deleted mode was the current mode, switch to Work mode
     if (currentMode === modeName) {
-      setCurrentMode('Work');
+      setMode('Work');
     }
   };
   
-  const getEditingModeApps = (): AppIconOrEmpty[][] => {
+  const editingModeApps = React.useMemo(() => {
     if (editingModeName) {
       // If editing existing custom mode, use it; otherwise start with empty grid
       return customModes[editingModeName] || Array(5).fill(null).map(() => Array(3).fill(null));
     }
     // New mode - start with empty grid
     return Array(5).fill(null).map(() => Array(3).fill(null));
-  };
-  
-  const editingModeApps = getEditingModeApps();
+  }, [editingModeName, customModes]);
 
   const handleThemeChange = (theme: Theme) => {
-    setCurrentTheme(theme);
+    setTheme(theme);
   };
 
   const handleAppPickerClose = () => {
@@ -520,23 +477,18 @@ export default function LauncherScreen() {
 
           {/* Graffiti Area */}
           <GraffitiArea cursorVisible={cursorVisible} theme={PALM_THEMES[currentTheme]} />
-        </View>
 
-        {/* Favorite Buttons - Gray Bezel Bottom */}
-        <FavoriteButtons />
-      </View>
+          {/* App Picker Modal - Inside screen */}
+          <AppPickerModal
+            visible={isAppPickerOpen}
+            availableApps={AVAILABLE_APPS}
+            onSelect={handleAppSelect}
+            onClose={handleAppPickerClose}
+            theme={PALM_THEMES[currentTheme]}
+          />
 
-      {/* App Picker Modal */}
-      <AppPickerModal
-        visible={isAppPickerOpen}
-        availableApps={AVAILABLE_APPS}
-        onSelect={handleAppSelect}
-        onClose={handleAppPickerClose}
-        theme={PALM_THEMES[currentTheme]}
-      />
-
-      {/* Custom Mode Modal */}
-      <CustomModeModal
+          {/* Custom Mode Modal - Inside screen */}
+          <CustomModeModal
         visible={isCustomModeModalOpen}
         modeName={editingModeName || ''}
         modeApps={editingModeApps}
@@ -580,6 +532,38 @@ export default function LauncherScreen() {
         isAppPickerOpen={isAppPickerOpen}
         onAppPickerClose={handleAppPickerClose}
       />
+
+          {/* Pixel Alert for Duplicate Apps - Inside screen */}
+          {duplicateAlert && (
+            <PixelAlert
+              visible={duplicateAlert.visible}
+              title="DUPLICATE APP"
+              message={`"${duplicateAlert.appLabel}" already exists in this mode. Do you want to add it again?`}
+              buttons={[
+                {
+                  text: 'CANCEL',
+                  style: 'cancel',
+                  onPress: () => {
+                    setDuplicateAlert(null);
+                    setSelectedSlot(null);
+                  },
+                },
+                {
+                  text: 'YES',
+                  onPress: () => {
+                    duplicateAlert.onConfirm();
+                    setDuplicateAlert(null);
+                  },
+                },
+              ]}
+              theme={PALM_THEMES[currentTheme]}
+            />
+          )}
+        </View>
+
+        {/* Favorite Buttons - Gray Bezel Bottom */}
+        <FavoriteButtons />
+      </View>
     </View>
   );
 }

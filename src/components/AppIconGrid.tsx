@@ -1,5 +1,5 @@
-import React from 'react';
 import { PressStart2P_400Regular, useFonts } from '@expo-google-fonts/press-start-2p';
+import React from 'react';
 import { ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { PalmTheme } from '../constants/palmThemes';
 import { AppIconSlot } from './AppIconSlot';
@@ -111,7 +111,6 @@ const styles = StyleSheet.create({
     paddingBottom: 12,
     paddingRight: 4,
     position: 'relative',
-    overflow: 'hidden',
   },
   pixelEffectOverlay: {
     position: 'absolute',
@@ -124,11 +123,9 @@ const styles = StyleSheet.create({
     zIndex: 1,
   },
   scrollView: {
-    flex: 1,
     zIndex: 2,
   },
   appsGrid: {
-    flexGrow: 1,
     justifyContent: 'flex-start',
     paddingTop: 4,
     paddingBottom: 4,
@@ -138,6 +135,7 @@ const styles = StyleSheet.create({
     justifyContent: 'space-evenly',
     alignItems: 'center',
     marginBottom: 12,
+    minHeight: 100,
   },
   editModeBar: {
     flexDirection: 'row',

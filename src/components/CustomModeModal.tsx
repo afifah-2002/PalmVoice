@@ -1,12 +1,11 @@
 import { PressStart2P_400Regular, useFonts } from '@expo-google-fonts/press-start-2p';
 import React, { useState } from 'react';
-import { Alert, Dimensions, Modal, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { PalmTheme } from '../constants/palmThemes';
 import { AppIconGrid } from './AppIconGrid';
 import { AppPickerModal } from './AppPickerModal';
-import { PixelKeyboard } from './PixelKeyboard';
-
-const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
+import { MiniKeyboard } from './MiniKeyboard';
+import { PixelAlert } from './PixelAlert';
 
 interface AppIcon {
   label: string;
@@ -68,13 +67,37 @@ export function CustomModeModal({
   const [modeName, setModeName] = useState(initialModeName);
   const [modeApps, setModeApps] = useState<AppIconOrEmpty[][]>(initialModeApps);
   const [isKeyboardVisible, setIsKeyboardVisible] = useState(false);
+  const [localSelectedSlot, setLocalSelectedSlot] = useState<{ rowIndex: number; colIndex: number } | null>(null);
+  const [localIsAppPickerOpen, setLocalIsAppPickerOpen] = useState(false);
+  const [duplicateAlert, setDuplicateAlert] = useState<{ visible: boolean; appLabel: string; onConfirm: () => void } | null>(null);
+  const [deleteAlert, setDeleteAlert] = useState<{ visible: boolean; modeName: string; onConfirm: () => void } | null>(null);
 
+  // Track if modal was just opened
+  const prevVisibleRef = React.useRef(visible);
+  const initialModeAppsRef = React.useRef(initialModeApps);
+  const initialModeNameRef = React.useRef(initialModeName);
+  
+  // Update refs when modal is closed
   React.useEffect(() => {
-    setModeName(initialModeName);
-    setModeApps(initialModeApps);
-  }, [initialModeName, initialModeApps, visible]);
+    if (!visible) {
+      initialModeAppsRef.current = initialModeApps;
+      initialModeNameRef.current = initialModeName;
+    }
+  }, [visible, initialModeApps, initialModeName]);
+  
+  React.useEffect(() => {
+    // Only reset when modal transitions from hidden to visible
+    if (visible && !prevVisibleRef.current) {
+      setModeName(initialModeNameRef.current);
+      setModeApps(initialModeAppsRef.current);
+      setLocalSelectedSlot(null);
+      setLocalIsAppPickerOpen(false);
+    }
+    prevVisibleRef.current = visible;
+  }, [visible]);
   
   const handleAppPress = (app: AppIcon, rowIndex: number, colIndex: number) => {
+    setIsKeyboardVisible(false); // Close keyboard when interacting with apps
     if (isEditMode) {
       // Handle swap in custom mode modal
       if (selectedIconForSwap) {
@@ -108,6 +131,7 @@ export function CustomModeModal({
   };
   
   const handleDeleteIcon = (rowIndex: number, colIndex: number) => {
+    setIsKeyboardVisible(false); // Close keyboard when deleting apps
     const updatedApps = modeApps.map((row, rIdx) => {
       if (rIdx === rowIndex) {
         const newRow = [...row];
@@ -121,18 +145,64 @@ export function CustomModeModal({
   };
   
   const handleAppSelect = (appLabel: string) => {
-    if (selectedSlot) {
-      const { rowIndex, colIndex } = selectedSlot;
-      const updatedApps = modeApps.map((row, rIdx) => {
-        if (rIdx === rowIndex) {
-          const newRow = [...row];
-          newRow[colIndex] = { label: appLabel, route: appLabel === 'TO DO LIST' ? '/tasks' : undefined };
-          return newRow;
+    const slot = localSelectedSlot || selectedSlot;
+    
+    if (!slot) {
+      console.warn('No slot selected when trying to place app');
+      return;
+    }
+    
+    const { rowIndex, colIndex } = slot;
+    
+    // Check if app already exists in this mode (excluding the current slot)
+    let existingRowIndex: number | null = null;
+    let existingColIndex: number | null = null;
+    
+    modeApps.forEach((row, rIdx) => {
+      row.forEach((app, cIdx) => {
+        // Skip the current slot
+        if (rIdx === rowIndex && cIdx === colIndex) {
+          return;
         }
-        return row;
+        if (app !== null && app.label === appLabel) {
+          existingRowIndex = rIdx;
+          existingColIndex = cIdx;
+        }
       });
+    });
+
+    const placeApp = () => {
+      // Create new apps array with the selected app
+      const updatedApps = modeApps.map((row, rIdx) => 
+        row.map((app, cIdx) => {
+          if (rIdx === rowIndex && cIdx === colIndex) {
+            return { 
+              label: appLabel, 
+              route: appLabel === 'TO DO LIST' ? '/tasks' : undefined 
+            };
+          }
+          return app;
+        })
+      );
+      
       setModeApps(updatedApps);
-      onAppSelect(appLabel);
+      setLocalSelectedSlot(null);
+      setLocalIsAppPickerOpen(false);
+      onAppPickerClose();
+    };
+
+    // If app already exists, show confirmation dialog
+    if (existingRowIndex !== null && existingColIndex !== null) {
+      setLocalIsAppPickerOpen(false); // Close app picker before showing alert
+      onAppPickerClose();
+      setDuplicateAlert({
+        visible: true,
+        appLabel,
+        onConfirm: placeApp,
+      });
+    } else {
+      // App doesn't exist, just place it
+      placeApp();
     }
   };
 
@@ -148,46 +218,50 @@ export function CustomModeModal({
   };
   
   const handleDelete = () => {
-    Alert.alert(
-      'DELETE MODE',
-      `Are you sure you want to delete "${initialModeName}"? This cannot be undone.`,
-      [
-        {
-          text: 'CANCEL',
-          style: 'cancel',
-        },
-        {
-          text: 'DELETE',
-          style: 'destructive',
-          onPress: () => {
-            if (onDelete) {
-              onDelete();
-            }
-            onClose();
-          },
-        },
-      ],
-      { cancelable: true }
-    );
+    setDeleteAlert({
+      visible: true,
+      modeName: initialModeName,
+      onConfirm: () => {
+        if (onDelete) {
+          onDelete();
+        }
+        onClose();
+      },
+    });
   };
   
   const handleEmptySlotPress = (rowIndex: number, colIndex: number) => {
+    setIsKeyboardVisible(false); // Close keyboard when selecting apps
+    setLocalSelectedSlot({ rowIndex, colIndex });
+    setLocalIsAppPickerOpen(true);
     onEmptySlotPress(rowIndex, colIndex);
   };
   
   const handleChangeIcon = (rowIndex: number, colIndex: number) => {
+    setIsKeyboardVisible(false); // Close keyboard when changing apps
+    setLocalSelectedSlot({ rowIndex, colIndex });
+    setLocalIsAppPickerOpen(true);
     onChangeIcon(rowIndex, colIndex);
   };
+  
+  const handleAppPickerClose = () => {
+    setLocalSelectedSlot(null);
+    setLocalIsAppPickerOpen(false);
+    onAppPickerClose();
+  };
+
+  if (!visible) {
+    return null;
+  }
 
   return (
-    <Modal
-      visible={visible}
-      transparent={true}
-      animationType="fade"
-      onRequestClose={onClose}
-    >
+    <>
       <View style={styles.modalOverlay}>
-        <View style={[styles.modalContent, { backgroundColor: theme.modalBackground, borderColor: theme.modalBorder }]}>
+        <View style={[
+          styles.modalContent, 
+          isKeyboardVisible && styles.modalContentWithKeyboard,
+          { backgroundColor: theme.modalBackground, borderColor: theme.modalBorder }
+        ]}>
           <View style={[styles.modalHeader, { backgroundColor: theme.modalHeaderBackground, borderBottomColor: theme.modalHeaderBorder }]}>
             <Text style={[styles.modalTitle, { color: theme.modalText }]}>
               {initialModeName ? 'EDIT MODE' : 'CREATE MODE'}
@@ -200,7 +274,7 @@ export function CustomModeModal({
             </TouchableOpacity>
           </View>
 
-          <View style={styles.modalBody}>
+          <View style={[styles.modalBody, isKeyboardVisible && styles.modalBodyWithKeyboard]}>
             <View style={styles.nameInputContainer}>
               <Text style={[styles.label, { color: theme.modalText }]}>MODE NAME:</Text>
               <TouchableOpacity
@@ -214,96 +288,168 @@ export function CustomModeModal({
               </TouchableOpacity>
             </View>
 
-            <View style={styles.gridContainer}>
-              <AppIconGrid
-                apps={modeApps}
-                onAppPress={handleAppPress}
-                onIconLongPress={onIconLongPress}
-                onEmptySlotPress={handleEmptySlotPress}
-                theme={theme}
-                isEditMode={isEditMode}
-                selectedIconForSwap={selectedIconForSwap}
-                onDeleteIcon={handleDeleteIcon}
-                onChangeIcon={handleChangeIcon}
-                onExitEditMode={onExitEditMode}
-              />
-            </View>
+            {!isKeyboardVisible && (
+              <>
+                <View style={styles.gridContainer}>
+                  <AppIconGrid
+                    apps={modeApps}
+                    onAppPress={handleAppPress}
+                    onIconLongPress={onIconLongPress}
+                    onEmptySlotPress={handleEmptySlotPress}
+                    theme={theme}
+                    isEditMode={isEditMode}
+                    selectedIconForSwap={selectedIconForSwap}
+                    onDeleteIcon={handleDeleteIcon}
+                    onChangeIcon={handleChangeIcon}
+                    onExitEditMode={onExitEditMode}
+                  />
+                </View>
 
-            {isEditingExisting && onDelete && (
-              <TouchableOpacity
-                onPress={handleDelete}
-                style={[styles.deleteButton, { backgroundColor: '#8B0000', borderColor: '#5A0000' }]}
-              >
-                <Text style={[styles.buttonText, { color: '#FFFFFF' }]}>DELETE MODE</Text>
-              </TouchableOpacity>
+                {isEditingExisting && onDelete && (
+                  <TouchableOpacity
+                    onPress={handleDelete}
+                    style={[styles.deleteButton, { backgroundColor: '#8B0000', borderColor: '#5A0000' }]}
+                  >
+                    <Text style={[styles.buttonText, { color: '#FFFFFF' }]}>DELETE MODE</Text>
+                  </TouchableOpacity>
+                )}
+                <View style={styles.buttonRow}>
+                  <TouchableOpacity
+                    onPress={onClose}
+                    style={[styles.cancelButton, { backgroundColor: theme.dropdownBackground, borderColor: theme.dropdownBorder }]}
+                  >
+                    <Text style={[styles.buttonText, { color: theme.modalText }]}>CANCEL</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    onPress={handleSave}
+                    style={[styles.saveButton, { backgroundColor: theme.headerBackground, borderColor: theme.headerBorder }]}
+                    disabled={!modeName.trim()}
+                  >
+                    <Text style={[styles.buttonText, { color: theme.headerText }]}>SAVE</Text>
+                  </TouchableOpacity>
+                </View>
+              </>
             )}
-            <View style={styles.buttonRow}>
-              <TouchableOpacity
-                onPress={onClose}
-                style={[styles.cancelButton, { backgroundColor: theme.dropdownBackground, borderColor: theme.dropdownBorder }]}
-              >
-                <Text style={[styles.buttonText, { color: theme.modalText }]}>CANCEL</Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                onPress={handleSave}
-                style={[styles.saveButton, { backgroundColor: theme.headerBackground, borderColor: theme.headerBorder }]}
-                disabled={!modeName.trim()}
-              >
-                <Text style={[styles.buttonText, { color: theme.headerText }]}>SAVE</Text>
-              </TouchableOpacity>
-            </View>
+            
+            {/* Mini Keyboard - Inside modal body */}
+            {isKeyboardVisible && (
+              <View style={styles.keyboardWrapper}>
+                <MiniKeyboard
+                  visible={isKeyboardVisible}
+                  theme={theme}
+                  onKeyPress={(key) => {
+                    if (modeName.length < 20) {
+                      setModeName((prev) => prev + key);
+                    }
+                  }}
+                  onBackspace={() => {
+                    setModeName((prev) => prev.slice(0, -1));
+                  }}
+                  onEnter={() => {
+                    setIsKeyboardVisible(false);
+                  }}
+                  onSpace={() => {
+                    if (modeName.length < 20) {
+                      setModeName((prev) => prev + ' ');
+                    }
+                  }}
+                  onClose={() => setIsKeyboardVisible(false)}
+                />
+              </View>
+            )}
           </View>
         </View>
       </View>
       
       {/* App Picker Modal */}
       <AppPickerModal
-        visible={isAppPickerOpen}
+        visible={localIsAppPickerOpen || isAppPickerOpen}
         availableApps={availableApps}
         onSelect={handleAppSelect}
-        onClose={onAppPickerClose}
+        onClose={handleAppPickerClose}
         theme={theme}
       />
-      
-      {/* Pixel Keyboard */}
-      <PixelKeyboard
-        visible={isKeyboardVisible}
-        theme={theme}
-        onKeyPress={(key) => {
-          if (modeName.length < 20) {
-            setModeName((prev) => prev + key);
-          }
-        }}
-        onBackspace={() => {
-          setModeName((prev) => prev.slice(0, -1));
-        }}
-        onEnter={() => {
-          setIsKeyboardVisible(false);
-        }}
-        onSpace={() => {
-          if (modeName.length < 20) {
-            setModeName((prev) => prev + ' ');
-          }
-        }}
-        onClose={() => setIsKeyboardVisible(false)}
-      />
-    </Modal>
+
+      {/* Pixel Alert for Duplicate Apps */}
+      {duplicateAlert && (
+        <PixelAlert
+          visible={duplicateAlert.visible}
+          title="DUPLICATE APP"
+          message={`"${duplicateAlert.appLabel}" already exists in this mode. Do you want to add it again?`}
+          buttons={[
+            {
+              text: 'CANCEL',
+              style: 'cancel',
+              onPress: () => {
+                setDuplicateAlert(null);
+                setLocalSelectedSlot(null);
+              },
+            },
+            {
+              text: 'YES',
+              onPress: () => {
+                duplicateAlert.onConfirm();
+                setDuplicateAlert(null);
+              },
+            },
+          ]}
+          theme={theme}
+        />
+      )}
+
+      {/* Pixel Alert for Delete Mode */}
+      {deleteAlert && (
+        <PixelAlert
+          visible={deleteAlert.visible}
+          title="DELETE MODE"
+          message={`Are you sure you want to delete "${deleteAlert.modeName}"? This cannot be undone.`}
+          buttons={[
+            {
+              text: 'CANCEL',
+              style: 'cancel',
+              onPress: () => {
+                setDeleteAlert(null);
+              },
+            },
+            {
+              text: 'DELETE',
+              style: 'destructive',
+              onPress: () => {
+                deleteAlert.onConfirm();
+                setDeleteAlert(null);
+              },
+            },
+          ]}
+          theme={theme}
+        />
+      )}
+    </>
   );
 }
 
 const styles = StyleSheet.create({
   modalOverlay: {
-    flex: 1,
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
     backgroundColor: 'rgba(0, 0, 0, 0.7)',
     justifyContent: 'center',
     alignItems: 'center',
+    zIndex: 1000,
   },
   modalContent: {
-    width: SCREEN_WIDTH * 0.95,
-    maxHeight: SCREEN_HEIGHT * 0.9,
+    position: 'relative',
+    width: '95%',
+    maxHeight: '75%',
     borderRadius: 12,
     borderWidth: 2,
     overflow: 'hidden',
+    zIndex: 1001,
+  },
+  modalContentWithKeyboard: {
+    maxHeight: '85%',
   },
   modalHeader: {
     flexDirection: 'row',
@@ -330,7 +476,13 @@ const styles = StyleSheet.create({
   },
   modalBody: {
     padding: 16,
-    maxHeight: SCREEN_HEIGHT * 0.75,
+  },
+  modalBodyWithKeyboard: {
+    paddingBottom: 0,
+  },
+  keyboardWrapper: {
+    marginHorizontal: -16,
+    marginBottom: -16,
   },
   nameInputContainer: {
     marginBottom: 16,
@@ -355,7 +507,7 @@ const styles = StyleSheet.create({
     fontSize: 10,
   },
   gridContainer: {
-    height: SCREEN_HEIGHT * 0.5,
+    height: 350,
     marginBottom: 16,
   },
   buttonRow: {
