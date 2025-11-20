@@ -5,6 +5,7 @@ import { FlatList, ScrollView, StyleSheet, Text, TouchableOpacity, View } from '
 import { FavoriteButtons } from '../components/FavoriteButtons';
 import { PalmButton } from '../components/PalmButton';
 import { PixelAlert } from '../components/PixelAlert';
+import { PixelCalendar } from '../components/PixelCalendar';
 import { PixelKeyboard } from '../components/PixelKeyboard';
 import { PALM_THEMES } from '../constants/palmThemes';
 import { useTheme } from '../contexts/ThemeContext';
@@ -20,6 +21,7 @@ export const TaskListScreen: React.FC = () => {
   const [editingTask, setEditingTask] = useState<Task | null>(null);
   const [editText, setEditText] = useState('');
   const [editDescription, setEditDescription] = useState('');
+  const [isKeyboardVisibleInEdit, setIsKeyboardVisibleInEdit] = useState(true);
   const [isSelectionMode, setIsSelectionMode] = useState(false);
   const [selectedTaskIds, setSelectedTaskIds] = useState<Set<string>>(new Set());
   const [deleteAlertVisible, setDeleteAlertVisible] = useState(false);
@@ -27,8 +29,10 @@ export const TaskListScreen: React.FC = () => {
   const [isTypingMode, setIsTypingMode] = useState(false);
   const [typedTaskText, setTypedTaskText] = useState('');
   const [typedTaskDescription, setTypedTaskDescription] = useState('');
+  const [isKeyboardVisibleInTyping, setIsKeyboardVisibleInTyping] = useState(true);
   const [typedTaskDueDate, setTypedTaskDueDate] = useState<Date | undefined>(undefined);
   const [showDatePicker, setShowDatePicker] = useState(false);
+  const [showCalendar, setShowCalendar] = useState(false);
   const [viewingTaskDescription, setViewingTaskDescription] = useState<Task | null>(null);
   const [longPressMenuTask, setLongPressMenuTask] = useState<Task | null>(null);
   const [isEditingTitle, setIsEditingTitle] = useState(true); // true = title, false = description
@@ -178,6 +182,7 @@ export const TaskListScreen: React.FC = () => {
     setTypedTaskDescription('');
     setTypedTaskDueDate(undefined);
     setIsEditingTitle(true);
+    setIsKeyboardVisibleInTyping(true);
   };
 
   const handleSaveTypedTask = () => {
@@ -205,6 +210,11 @@ export const TaskListScreen: React.FC = () => {
     setTypedTaskText('');
     setTypedTaskDescription('');
     setIsEditingTitle(true);
+    setIsKeyboardVisibleInTyping(true);
+  };
+
+  const hideKeyboardInTyping = () => {
+    setIsKeyboardVisibleInTyping(false);
   };
 
   const startEditTask = (task: Task) => {
@@ -215,6 +225,7 @@ export const TaskListScreen: React.FC = () => {
     setEditDescription(task.description || '');
     setTypedTaskDueDate(task.dueDate);
     setIsEditingTitle(true);
+    setIsKeyboardVisibleInEdit(true);
   };
 
   const saveEditTask = () => {
@@ -242,6 +253,11 @@ export const TaskListScreen: React.FC = () => {
     setEditDescription('');
     setTypedTaskDueDate(undefined);
     setIsEditingTitle(true);
+    setIsKeyboardVisibleInEdit(true);
+  };
+
+  const hideKeyboardInEdit = () => {
+    setIsKeyboardVisibleInEdit(false);
   };
 
 
@@ -463,7 +479,9 @@ export const TaskListScreen: React.FC = () => {
                   </TouchableOpacity>
                 </View>
 
-                <View 
+                <TouchableOpacity
+                  activeOpacity={0.7}
+                  onPress={() => setIsKeyboardVisibleInEdit(true)}
                   style={[styles.typingArea, { backgroundColor: theme.graffitiBackground, borderColor: theme.graffitiBorder }]}
                 >
                   <View style={styles.typingAreaContent}>
@@ -471,7 +489,7 @@ export const TaskListScreen: React.FC = () => {
                       {isEditingTitle ? (editText || ' ') : (editDescription || ' ')}
                     </Text>
                   </View>
-                </View>
+                </TouchableOpacity>
 
                 {/* Due Date Selection */}
                 <View style={[styles.datePickerContainer, { borderTopColor: theme.headerBorder }]}>
@@ -498,7 +516,7 @@ export const TaskListScreen: React.FC = () => {
 
                 {showDatePicker && (
                   <View style={[styles.dateOptionsContainer, { backgroundColor: theme.modalBackground, borderColor: theme.modalBorder }]}>
-                    <Text style={[styles.dateOptionsTitle, { color: theme.modalText }]}>SELECT DATE</Text>
+                    <Text style={[styles.dateOptionsTitle, { color: theme.modalText }]}>QUICK SELECT</Text>
                     <View style={styles.dateOptionsGrid}>
                       {[
                         { label: 'TODAY', days: 0 },
@@ -523,6 +541,15 @@ export const TaskListScreen: React.FC = () => {
                         );
                       })}
                     </View>
+                    <TouchableOpacity
+                      onPress={() => {
+                        setShowDatePicker(false);
+                        setShowCalendar(true);
+                      }}
+                      style={[styles.calendarButton, { backgroundColor: theme.headerBackground, borderColor: theme.headerBorder }]}
+                    >
+                      <Text style={[styles.calendarButtonText, { color: theme.headerText }]}>CALENDAR</Text>
+                    </TouchableOpacity>
                   </View>
                 )}
 
@@ -537,8 +564,21 @@ export const TaskListScreen: React.FC = () => {
                 </View>
               </ScrollView>
 
+              {/* Calendar Modal */}
+              <PixelCalendar
+                visible={showCalendar}
+                selectedDate={typedTaskDueDate}
+                onDateSelect={(date) => {
+                  setTypedTaskDueDate(date);
+                  setShowCalendar(false);
+                }}
+                onClose={() => setShowCalendar(false)}
+                theme={theme}
+                maxMonthsAhead={12}
+              />
+
               <PixelKeyboard
-                visible={editingTask !== null}
+                visible={editingTask !== null && isKeyboardVisibleInEdit}
                 theme={theme}
                 onKeyPress={(key) => {
                   if (isEditingTitle) {
@@ -568,7 +608,7 @@ export const TaskListScreen: React.FC = () => {
                     setEditDescription((prev) => prev + ' ');
                   }
                 }}
-                onClose={cancelEditTask}
+                onClose={hideKeyboardInEdit}
               />
             </View>
           )}
@@ -733,7 +773,9 @@ export const TaskListScreen: React.FC = () => {
                   </TouchableOpacity>
                 </View>
 
-                <View 
+                <TouchableOpacity
+                  activeOpacity={0.7}
+                  onPress={() => setIsKeyboardVisibleInTyping(true)}
                   style={[styles.typingArea, { backgroundColor: theme.graffitiBackground, borderColor: theme.graffitiBorder }]}
                 >
                   <View style={styles.typingAreaContent}>
@@ -741,7 +783,7 @@ export const TaskListScreen: React.FC = () => {
                       {isEditingTitle ? (typedTaskText || ' ') : (typedTaskDescription || ' ')}
                     </Text>
                   </View>
-                </View>
+                </TouchableOpacity>
 
                 {/* Due Date Selection */}
                 <View style={[styles.datePickerContainer, { borderTopColor: theme.headerBorder }]}>
@@ -768,7 +810,7 @@ export const TaskListScreen: React.FC = () => {
 
                 {showDatePicker && (
                   <View style={[styles.dateOptionsContainer, { backgroundColor: theme.modalBackground, borderColor: theme.modalBorder }]}>
-                    <Text style={[styles.dateOptionsTitle, { color: theme.modalText }]}>SELECT DATE</Text>
+                    <Text style={[styles.dateOptionsTitle, { color: theme.modalText }]}>QUICK SELECT</Text>
                     <View style={styles.dateOptionsGrid}>
                       {[
                         { label: 'TODAY', days: 0 },
@@ -793,6 +835,15 @@ export const TaskListScreen: React.FC = () => {
                         );
                       })}
                     </View>
+                    <TouchableOpacity
+                      onPress={() => {
+                        setShowDatePicker(false);
+                        setShowCalendar(true);
+                      }}
+                      style={[styles.calendarButton, { backgroundColor: theme.headerBackground, borderColor: theme.headerBorder }]}
+                    >
+                      <Text style={[styles.calendarButtonText, { color: theme.headerText }]}>CALENDAR</Text>
+                    </TouchableOpacity>
                   </View>
                 )}
 
@@ -807,8 +858,21 @@ export const TaskListScreen: React.FC = () => {
                 </View>
               </ScrollView>
 
+              {/* Calendar Modal */}
+              <PixelCalendar
+                visible={showCalendar}
+                selectedDate={typedTaskDueDate}
+                onDateSelect={(date) => {
+                  setTypedTaskDueDate(date);
+                  setShowCalendar(false);
+                }}
+                onClose={() => setShowCalendar(false)}
+                theme={theme}
+                maxMonthsAhead={12}
+              />
+
               <PixelKeyboard
-                visible={isTypingMode}
+                visible={isTypingMode && isKeyboardVisibleInTyping}
                 theme={theme}
                 onKeyPress={(key) => {
                   if (isEditingTitle) {
@@ -838,7 +902,7 @@ export const TaskListScreen: React.FC = () => {
                     setTypedTaskDescription((prev) => prev + ' ');
                   }
                 }}
-                onClose={handleCancelTyping}
+                onClose={hideKeyboardInTyping}
               />
             </View>
           )}
@@ -1120,6 +1184,19 @@ const styles = StyleSheet.create({
     fontSize: 10,
     textAlign: 'center',
     marginBottom: 12,
+  },
+  calendarButton: {
+    marginTop: 12,
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    borderWidth: 2,
+    borderRadius: 4,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  calendarButtonText: {
+    fontFamily: 'PressStart2P_400Regular',
+    fontSize: 10,
   },
   dateOptionsGrid: {
     flexDirection: 'row',

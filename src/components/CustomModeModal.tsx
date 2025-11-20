@@ -4,8 +4,8 @@ import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { PalmTheme } from '../constants/palmThemes';
 import { AppIconGrid } from './AppIconGrid';
 import { AppPickerModal } from './AppPickerModal';
-import { MiniKeyboard } from './MiniKeyboard';
 import { PixelAlert } from './PixelAlert';
+import { PixelKeyboard } from './PixelKeyboard';
 
 interface AppIcon {
   label: string;
@@ -172,20 +172,24 @@ export function CustomModeModal({
     });
 
     const placeApp = () => {
-      // Create new apps array with the selected app
-      const updatedApps = modeApps.map((row, rIdx) => 
-        row.map((app, cIdx) => {
-          if (rIdx === rowIndex && cIdx === colIndex) {
-            return { 
-              label: appLabel, 
-              route: appLabel === 'TO DO LIST' ? '/tasks' : undefined 
-            };
-          }
-          return app;
-        })
-      );
+      // Create new apps array with the selected app - ensure deep copy for React to detect change
+      const updatedApps = modeApps.map((row, rIdx) => {
+        if (rIdx === rowIndex) {
+          // Create a new row array
+          const newRow = [...row];
+          newRow[colIndex] = { 
+            label: appLabel, 
+            route: appLabel === 'TO DO LIST' ? '/tasks' : undefined 
+          };
+          return newRow;
+        }
+        return [...row]; // Return a copy of the row even if not modified
+      });
       
+      // Update local state with new array reference
       setModeApps(updatedApps);
+      
+      // Clear selection and close picker
       setLocalSelectedSlot(null);
       setLocalIsAppPickerOpen(false);
       onAppPickerClose();
@@ -274,7 +278,7 @@ export function CustomModeModal({
             </TouchableOpacity>
           </View>
 
-          <View style={[styles.modalBody, isKeyboardVisible && styles.modalBodyWithKeyboard]}>
+          <View style={styles.modalBody}>
             <View style={styles.nameInputContainer}>
               <Text style={[styles.label, { color: theme.modalText }]}>MODE NAME:</Text>
               <TouchableOpacity
@@ -288,78 +292,73 @@ export function CustomModeModal({
               </TouchableOpacity>
             </View>
 
-            {!isKeyboardVisible && (
-              <>
-                <View style={styles.gridContainer}>
-                  <AppIconGrid
-                    apps={modeApps}
-                    onAppPress={handleAppPress}
-                    onIconLongPress={onIconLongPress}
-                    onEmptySlotPress={handleEmptySlotPress}
-                    theme={theme}
-                    isEditMode={isEditMode}
-                    selectedIconForSwap={selectedIconForSwap}
-                    onDeleteIcon={handleDeleteIcon}
-                    onChangeIcon={handleChangeIcon}
-                    onExitEditMode={onExitEditMode}
-                  />
-                </View>
-
-                {isEditingExisting && onDelete && (
-                  <TouchableOpacity
-                    onPress={handleDelete}
-                    style={[styles.deleteButton, { backgroundColor: '#8B0000', borderColor: '#5A0000' }]}
-                  >
-                    <Text style={[styles.buttonText, { color: '#FFFFFF' }]}>DELETE MODE</Text>
-                  </TouchableOpacity>
-                )}
-                <View style={styles.buttonRow}>
-                  <TouchableOpacity
-                    onPress={onClose}
-                    style={[styles.cancelButton, { backgroundColor: theme.dropdownBackground, borderColor: theme.dropdownBorder }]}
-                  >
-                    <Text style={[styles.buttonText, { color: theme.modalText }]}>CANCEL</Text>
-                  </TouchableOpacity>
-                  <TouchableOpacity
-                    onPress={handleSave}
-                    style={[styles.saveButton, { backgroundColor: theme.headerBackground, borderColor: theme.headerBorder }]}
-                    disabled={!modeName.trim()}
-                  >
-                    <Text style={[styles.buttonText, { color: theme.headerText }]}>SAVE</Text>
-                  </TouchableOpacity>
-                </View>
-              </>
-            )}
-            
-            {/* Mini Keyboard - Inside modal body */}
-            {isKeyboardVisible && (
-              <View style={styles.keyboardWrapper}>
-                <MiniKeyboard
-                  visible={isKeyboardVisible}
+            {/* Only show app grid when editing existing mode */}
+            {isEditingExisting && (
+              <View style={styles.gridContainer}>
+                <AppIconGrid
+                  apps={modeApps}
+                  onAppPress={handleAppPress}
+                  onIconLongPress={onIconLongPress}
+                  onEmptySlotPress={handleEmptySlotPress}
                   theme={theme}
-                  onKeyPress={(key) => {
-                    if (modeName.length < 20) {
-                      setModeName((prev) => prev + key);
-                    }
-                  }}
-                  onBackspace={() => {
-                    setModeName((prev) => prev.slice(0, -1));
-                  }}
-                  onEnter={() => {
-                    setIsKeyboardVisible(false);
-                  }}
-                  onSpace={() => {
-                    if (modeName.length < 20) {
-                      setModeName((prev) => prev + ' ');
-                    }
-                  }}
-                  onClose={() => setIsKeyboardVisible(false)}
+                  isEditMode={isEditMode}
+                  selectedIconForSwap={selectedIconForSwap}
+                  onDeleteIcon={handleDeleteIcon}
+                  onChangeIcon={handleChangeIcon}
+                  onExitEditMode={onExitEditMode}
                 />
               </View>
             )}
+
+            {isEditingExisting && onDelete && (
+              <TouchableOpacity
+                onPress={handleDelete}
+                style={[styles.deleteButton, { backgroundColor: '#8B0000', borderColor: '#5A0000' }]}
+              >
+                <Text style={[styles.buttonText, { color: '#FFFFFF' }]}>DELETE MODE</Text>
+              </TouchableOpacity>
+            )}
+            <View style={styles.buttonRow}>
+              <TouchableOpacity
+                onPress={onClose}
+                style={[styles.cancelButton, { backgroundColor: theme.dropdownBackground, borderColor: theme.dropdownBorder }]}
+              >
+                <Text style={[styles.buttonText, { color: theme.modalText }]}>CANCEL</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                onPress={handleSave}
+                style={[styles.saveButton, { backgroundColor: theme.headerBackground, borderColor: theme.headerBorder }]}
+                disabled={!modeName.trim()}
+              >
+                <Text style={[styles.buttonText, { color: theme.headerText }]}>SAVE</Text>
+              </TouchableOpacity>
+            </View>
           </View>
         </View>
       </View>
+
+      {/* Pixel Keyboard - Outside modal, appears from bottom */}
+      <PixelKeyboard
+        visible={isKeyboardVisible}
+        theme={theme}
+        onKeyPress={(key) => {
+          if (modeName.length < 20) {
+            setModeName((prev) => prev + key);
+          }
+        }}
+        onBackspace={() => {
+          setModeName((prev) => prev.slice(0, -1));
+        }}
+        onEnter={() => {
+          setIsKeyboardVisible(false);
+        }}
+        onSpace={() => {
+          if (modeName.length < 20) {
+            setModeName((prev) => prev + ' ');
+          }
+        }}
+        onClose={() => setIsKeyboardVisible(false)}
+      />
       
       {/* App Picker Modal */}
       <AppPickerModal
@@ -448,9 +447,6 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
     zIndex: 1001,
   },
-  modalContentWithKeyboard: {
-    maxHeight: '85%',
-  },
   modalHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
@@ -476,13 +472,6 @@ const styles = StyleSheet.create({
   },
   modalBody: {
     padding: 16,
-  },
-  modalBodyWithKeyboard: {
-    paddingBottom: 0,
-  },
-  keyboardWrapper: {
-    marginHorizontal: -16,
-    marginBottom: -16,
   },
   nameInputContainer: {
     marginBottom: 16,
