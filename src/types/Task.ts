@@ -1,6 +1,8 @@
 export interface Task {
   id: string;
-  text: string;
+  text: string; // Title (kept for backward compatibility)
+  title: string; // Title (new field)
+  description?: string; // Description (optional)
   completed: boolean;
   dueDate?: Date;
   createdAt: Date;

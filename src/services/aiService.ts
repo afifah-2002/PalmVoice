@@ -140,7 +140,9 @@ export async function parseVoiceToTasks(_audioUri: string): Promise<Task[]> {
     
     const task: Task = {
       id: `task-${Date.now()}-${i}`,
-      text: template.text,
+      text: template.text, // Keep for backward compatibility
+      title: template.text,
+      description: undefined,
       completed: false,
       dueDate: template.datePhrase ? parseDateFromText(template.datePhrase) : undefined,
       createdAt: new Date(),

@@ -32,6 +32,9 @@ export async function loadTasks(): Promise<Task[]> {
     // Convert date strings back to Date objects
     return tasks.map((task: any) => ({
       ...task,
+      // Backward compatibility: if no title, use text as title
+      title: task.title || task.text,
+      text: task.text || task.title, // Keep text for backward compatibility
       dueDate: task.dueDate ? new Date(task.dueDate) : undefined,
       createdAt: new Date(task.createdAt),
     }));

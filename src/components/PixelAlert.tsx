@@ -1,6 +1,6 @@
 import { PressStart2P_400Regular, useFonts } from '@expo-google-fonts/press-start-2p';
-import React from 'react';
-import { Modal, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import React, { useRef } from 'react';
+import { Animated, Modal, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { PalmTheme } from '../constants/palmThemes';
 
 interface PixelAlertProps {
@@ -57,20 +57,15 @@ export function PixelAlert({
           {/* Buttons */}
           <View style={styles.buttonContainer}>
             {buttons.map((button, index) => (
-              <TouchableOpacity
-                key={index}
-                onPress={button.onPress}
-                style={[
-                  styles.button,
-                  {
-                    backgroundColor: button.style === 'destructive' ? '#8B0000' : theme.headerBackground,
-                    borderColor: button.style === 'destructive' ? '#5A0000' : theme.headerBorder,
-                  },
-                ]}
-                activeOpacity={0.7}
-              >
-                <Text style={[styles.buttonText, { color: theme.headerText }]}>{button.text}</Text>
-              </TouchableOpacity>
+              <React.Fragment key={index}>
+                {index > 0 && <View style={{ width: 12 }} />}
+                <AlertButton
+                  text={button.text}
+                  onPress={button.onPress}
+                  style={button.style}
+                  theme={theme}
+                />
+              </React.Fragment>
             ))}
           </View>
         </View>
@@ -124,21 +119,20 @@ const styles = StyleSheet.create({
   buttonContainer: {
     flexDirection: 'row',
     padding: 16,
-    gap: 12,
+    paddingTop: 12,
   },
   button: {
-    flex: 1,
     paddingVertical: 14,
-    borderWidth: 3,
-    borderRadius: 8,
+    borderWidth: 2,
+    borderRadius: 5,
     alignItems: 'center',
     justifyContent: 'center',
-    // Pixelated 3D effect
+    // 3D elevated effect
     shadowColor: '#000',
-    shadowOffset: { width: 2, height: 2 },
+    shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.3,
-    shadowRadius: 0,
-    elevation: 4,
+    shadowRadius: 2,
+    elevation: 3,
   },
   buttonText: {
     fontFamily: 'PressStart2P_400Regular',
@@ -146,3 +140,83 @@ const styles = StyleSheet.create({
     textAlign: 'center',
   },
 });
+
+// Animated button component for alerts
+const AlertButton = ({
+  text,
+  onPress,
+  style,
+  theme,
+}: {
+  text: string;
+  onPress: () => void;
+  style?: 'cancel' | 'destructive' | 'default';
+  theme: PalmTheme;
+}) => {
+  const pressAnim = useRef(new Animated.Value(0)).current;
+
+  const handlePressIn = () => {
+    Animated.spring(pressAnim, {
+      toValue: 1,
+      useNativeDriver: true,
+      tension: 300,
+      friction: 10,
+    }).start();
+  };
+
+  const handlePressOut = () => {
+    Animated.spring(pressAnim, {
+      toValue: 0,
+      useNativeDriver: true,
+      tension: 300,
+      friction: 10,
+    }).start();
+  };
+
+  const translateY = pressAnim.interpolate({
+    inputRange: [0, 1],
+    outputRange: [0, 2],
+  });
+
+  const scale = pressAnim.interpolate({
+    inputRange: [0, 1],
+    outputRange: [1, 0.95],
+  });
+
+  const isDestructive = style === 'destructive';
+  const backgroundColor = isDestructive ? '#8B0000' : theme.headerBackground;
+  const borderColor = isDestructive ? '#5A0000' : theme.headerBorder;
+  const textColor = isDestructive ? '#FFFFFF' : theme.headerText;
+
+  return (
+    <Animated.View
+      style={[
+        {
+          transform: [{ translateY }, { scale }],
+          flex: 1,
+        },
+      ]}
+    >
+      <TouchableOpacity
+        onPressIn={handlePressIn}
+        onPressOut={handlePressOut}
+        onPress={onPress}
+        activeOpacity={0.6}
+        hitSlop={{ top: 5, bottom: 5, left: 5, right: 5 }}
+        style={[
+          styles.button,
+          {
+            backgroundColor: backgroundColor,
+            // 3D effect: light top/left, dark bottom/right
+            borderTopColor: isDestructive ? '#A00000' : '#E0F0C8',
+            borderLeftColor: isDestructive ? '#A00000' : '#E0F0C8',
+            borderRightColor: borderColor,
+            borderBottomColor: borderColor,
+          },
+        ]}
+      >
+        <Text style={[styles.buttonText, { color: textColor }]}>{text}</Text>
+      </TouchableOpacity>
+    </Animated.View>
+  );
+};
