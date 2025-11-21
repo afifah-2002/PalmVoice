@@ -2,6 +2,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Task } from '../types/Task';
 
 const TASKS_STORAGE_KEY = '@palmvoice_tasks';
+const PETS_THEME_STORAGE_KEY = '@palmvoice_pets_theme';
 
 /**
  * Save tasks to AsyncStorage
@@ -54,5 +55,32 @@ export async function clearTasks(): Promise<void> {
   } catch (error) {
     console.error('Error clearing tasks:', error);
     throw error;
+  }
+}
+
+/**
+ * Save pets theme to AsyncStorage
+ */
+export async function savePetsTheme(theme: string): Promise<void> {
+  try {
+    await AsyncStorage.setItem(PETS_THEME_STORAGE_KEY, theme);
+    console.log('Pets theme saved to storage:', theme);
+  } catch (error) {
+    console.error('Error saving pets theme:', error);
+    throw error;
+  }
+}
+
+/**
+ * Load pets theme from AsyncStorage
+ */
+export async function loadPetsTheme(): Promise<string | null> {
+  try {
+    const theme = await AsyncStorage.getItem(PETS_THEME_STORAGE_KEY);
+    console.log('Pets theme loaded from storage:', theme);
+    return theme;
+  } catch (error) {
+    console.error('Error loading pets theme:', error);
+    return null;
   }
 }

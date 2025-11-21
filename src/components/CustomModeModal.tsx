@@ -172,6 +172,11 @@ export function CustomModeModal({
     });
 
     const placeApp = () => {
+      // Map app labels to routes
+      let route: string | undefined;
+      if (appLabel === 'TO DO LIST') route = '/tasks';
+      else if (appLabel === 'PETS') route = '/pets';
+      
       // Create new apps array with the selected app - ensure deep copy for React to detect change
       const updatedApps = modeApps.map((row, rIdx) => {
         if (rIdx === rowIndex) {
@@ -179,7 +184,7 @@ export function CustomModeModal({
           const newRow = [...row];
           newRow[colIndex] = { 
             label: appLabel, 
-            route: appLabel === 'TO DO LIST' ? '/tasks' : undefined 
+            route 
           };
           return newRow;
         }
@@ -446,6 +451,9 @@ const styles = StyleSheet.create({
     borderWidth: 2,
     overflow: 'hidden',
     zIndex: 1001,
+  },
+  modalContentWithKeyboard: {
+    maxHeight: '85%',
   },
   modalHeader: {
     flexDirection: 'row',

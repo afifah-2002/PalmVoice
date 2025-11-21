@@ -707,6 +707,41 @@ export const PixelIcon: React.FC<PixelIconProps> = ({ type }) => {
           </View>
         );
 
+      case 'PETS':
+        // Pet paw icon
+        return (
+          <View style={styles.iconContainer}>
+            <View style={styles.row}>
+              <View style={[styles.pixel, { backgroundColor: DARK }]} />
+              <View style={[styles.pixel, { backgroundColor: 'transparent' }]} />
+              <View style={[styles.pixel, { backgroundColor: DARK }]} />
+            </View>
+            <View style={styles.row}>
+              <View style={[styles.pixel, { backgroundColor: DARK }]} />
+              <View style={[styles.pixel, { backgroundColor: 'transparent' }]} />
+              <View style={[styles.pixel, { backgroundColor: DARK }]} />
+            </View>
+            <View style={styles.row}>
+              <View style={[styles.pixel, { backgroundColor: DARK }]} />
+              <View style={[styles.pixel, { backgroundColor: DARK }]} />
+              <View style={[styles.pixel, { backgroundColor: DARK }]} />
+              <View style={[styles.pixel, { backgroundColor: DARK }]} />
+            </View>
+            <View style={styles.row}>
+              <View style={[styles.pixel, { backgroundColor: DARK }]} />
+              <View style={[styles.pixel, { backgroundColor: MEDIUM }]} />
+              <View style={[styles.pixel, { backgroundColor: MEDIUM }]} />
+              <View style={[styles.pixel, { backgroundColor: DARK }]} />
+            </View>
+            <View style={styles.row}>
+              <View style={[styles.pixel, { backgroundColor: DARK }]} />
+              <View style={[styles.pixel, { backgroundColor: DARK }]} />
+              <View style={[styles.pixel, { backgroundColor: DARK }]} />
+              <View style={[styles.pixel, { backgroundColor: DARK }]} />
+            </View>
+          </View>
+        );
+
       default:
         // Generic square for other apps
         return (

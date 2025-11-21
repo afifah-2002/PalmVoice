@@ -41,7 +41,7 @@ export function FavoriteButtons({
     if (onPetPress) {
       onPetPress();
     } else {
-      console.log('Open Pet');
+      router.push('/pets' as any);
     }
   };
 

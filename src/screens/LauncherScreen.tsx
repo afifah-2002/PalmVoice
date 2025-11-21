@@ -176,6 +176,7 @@ export default function LauncherScreen() {
     'MAIL',
     'MEMO PAD',
     'MEMORY',
+    'PETS',
     'PREFS',
     'SECURITY',
     'TO DO LIST',
