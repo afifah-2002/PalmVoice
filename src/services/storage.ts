@@ -3,6 +3,8 @@ import { Task } from '../types/Task';
 
 const TASKS_STORAGE_KEY = '@palmvoice_tasks';
 const PETS_THEME_STORAGE_KEY = '@palmvoice_pets_theme';
+const PET_STORAGE_KEY = '@palmvoice_pet';
+const COINS_STORAGE_KEY = '@palmvoice_coins';
 
 /**
  * Save tasks to AsyncStorage
@@ -38,6 +40,8 @@ export async function loadTasks(): Promise<Task[]> {
       text: task.text || task.title, // Keep text for backward compatibility
       dueDate: task.dueDate ? new Date(task.dueDate) : undefined,
       createdAt: new Date(task.createdAt),
+      // Backward compatibility: convert old icon (string) to icons (array)
+      icons: task.icons || (task.icon ? [task.icon] : undefined),
     }));
   } catch (error) {
     console.error('Error loading tasks:', error);
@@ -82,5 +86,74 @@ export async function loadPetsTheme(): Promise<string | null> {
   } catch (error) {
     console.error('Error loading pets theme:', error);
     return null;
+  }
+}
+
+/**
+ * Save pet data to AsyncStorage
+ */
+export async function savePet(pet: { type: string; name: string; health: number; lastFed: number; lastPet: number } | null): Promise<void> {
+  try {
+    if (pet === null) {
+      await AsyncStorage.removeItem(PET_STORAGE_KEY);
+      console.log('Pet cleared from storage');
+    } else {
+      const jsonValue = JSON.stringify(pet);
+      await AsyncStorage.setItem(PET_STORAGE_KEY, jsonValue);
+      console.log('Pet saved to storage:', pet.name);
+    }
+  } catch (error) {
+    console.error('Error saving pet:', error);
+    throw error;
+  }
+}
+
+/**
+ * Load pet data from AsyncStorage
+ */
+export async function loadPet(): Promise<{ type: string; name: string; health: number; lastFed: number; lastPet: number } | null> {
+  try {
+    const jsonValue = await AsyncStorage.getItem(PET_STORAGE_KEY);
+    if (jsonValue === null) {
+      return null;
+    }
+    
+    const pet = JSON.parse(jsonValue);
+    console.log('Pet loaded from storage:', pet.name);
+    return pet;
+  } catch (error) {
+    console.error('Error loading pet:', error);
+    return null;
+  }
+}
+
+/**
+ * Save coins to AsyncStorage
+ */
+export async function saveCoins(coins: number): Promise<void> {
+  try {
+    await AsyncStorage.setItem(COINS_STORAGE_KEY, coins.toString());
+    console.log('Coins saved to storage:', coins);
+  } catch (error) {
+    console.error('Error saving coins:', error);
+    throw error;
+  }
+}
+
+/**
+ * Load coins from AsyncStorage
+ */
+export async function loadCoins(): Promise<number> {
+  try {
+    const coins = await AsyncStorage.getItem(COINS_STORAGE_KEY);
+    if (coins === null) {
+      return 10; // Default to 10 coins
+    }
+    const coinsValue = parseInt(coins, 10);
+    console.log('Coins loaded from storage:', coinsValue);
+    return isNaN(coinsValue) ? 10 : coinsValue;
+  } catch (error) {
+    console.error('Error loading coins:', error);
+    return 10; // Default to 10 coins on error
   }
 }

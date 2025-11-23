@@ -404,7 +404,7 @@ const styles = StyleSheet.create({
     borderRightWidth: 2,
     borderColor: '#6B8537',
     borderTopColor: 'transparent',
-    zIndex: 1002,
+    zIndex: 1002, // Higher than modal content to appear on top
   },
   keyboardHeader: {
     flexDirection: 'row',

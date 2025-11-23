@@ -6,4 +6,5 @@ export interface Task {
   completed: boolean;
   dueDate?: Date;
   createdAt: Date;
+  icons?: string[]; // Array of icon names for the task (up to 3)
 }

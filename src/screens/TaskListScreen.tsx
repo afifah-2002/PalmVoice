@@ -1,7 +1,7 @@
 import { PressStart2P_400Regular, useFonts } from '@expo-google-fonts/press-start-2p';
 import { useRouter } from 'expo-router';
 import React, { useEffect, useState } from 'react';
-import { FlatList, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { FlatList, Image, Modal, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { FavoriteButtons } from '../components/FavoriteButtons';
 import { PalmButton } from '../components/PalmButton';
 import { PixelAlert } from '../components/PixelAlert';
@@ -11,7 +11,7 @@ import { PALM_THEMES } from '../constants/palmThemes';
 import { useTheme } from '../contexts/ThemeContext';
 import { formatDate } from '../services/dateParser';
 import { playTaskComplete } from '../services/soundService';
-import { loadTasks, saveTasks } from '../services/storage';
+import { loadCoins, loadTasks, saveCoins, saveTasks } from '../services/storage';
 import { Task } from '../types/Task';
 
 export const TaskListScreen: React.FC = () => {
@@ -35,7 +35,12 @@ export const TaskListScreen: React.FC = () => {
   const [showCalendar, setShowCalendar] = useState(false);
   const [viewingTaskDescription, setViewingTaskDescription] = useState<Task | null>(null);
   const [longPressMenuTask, setLongPressMenuTask] = useState<Task | null>(null);
+  const [clickedTask, setClickedTask] = useState<Task | null>(null); // Task clicked for action menu
   const [isEditingTitle, setIsEditingTitle] = useState(true); // true = title, false = description
+  const [showCompletedTasks, setShowCompletedTasks] = useState(false);
+  const [showIconPicker, setShowIconPicker] = useState(false);
+  const [iconPickerTask, setIconPickerTask] = useState<Task | null>(null);
+  const [overdueTask, setOverdueTask] = useState<Task | null>(null);
   
   const { currentTheme } = useTheme();
   
@@ -44,6 +49,27 @@ export const TaskListScreen: React.FC = () => {
   });
   
   const theme = PALM_THEMES[currentTheme];
+
+  // Icon mapping
+  const iconMap: { [key: string]: any } = {
+    reminders: require('../../assets/icons/reminders.png'),
+    alarm: require('../../assets/icons/alarm.png'),
+    gmail: require('../../assets/icons/gmail.png'),
+    canvas: require('../../assets/icons/canvas.png'),
+    outlook: require('../../assets/icons/outlook.png'),
+    fitness: require('../../assets/icons/fitness.png'),
+    calendar: require('../../assets/icons/calendar.png'),
+    whatsapp: require('../../assets/icons/whatsapp.png'),
+    phone: require('../../assets/icons/phone.png'),
+    zoom: require('../../assets/icons/zoom.png'),
+    teams: require('../../assets/icons/teams.png'),
+    gmeet: require('../../assets/icons/gmeet.png'),
+    paypal: require('../../assets/icons/paypal.png'),
+    amazon: require('../../assets/icons/amazon.png'),
+    uber: require('../../assets/icons/uber.png'),
+  };
+
+  const iconNames = Object.keys(iconMap);
 
   // Load tasks on mount
   useEffect(() => {
@@ -79,14 +105,37 @@ export const TaskListScreen: React.FC = () => {
       }
       setSelectedTaskIds(newSelected);
     } else {
-      // Normal toggle completion
-      const task = tasks.find(t => t.id === id);
+      // Show action menu instead of auto-toggling
+    const task = tasks.find(t => t.id === id);
+      if (task) {
+        setClickedTask(task);
+      }
+    }
+  };
+
+  const handleMarkTaskAsDone = async () => {
+    if (clickedTask) {
+      const task = tasks.find(t => t.id === clickedTask.id);
       if (task && !task.completed) {
         playTaskComplete();
+        
+        // Award coins for completing a task
+        const currentCoins = await loadCoins();
+        const newCoins = currentCoins + 1; // +1 coin for completing 1 task
+        await saveCoins(newCoins);
       }
+      
       setTasks(tasks.map(task => 
-        task.id === id ? { ...task, completed: !task.completed } : task
+        task.id === clickedTask.id ? { ...task, completed: !task.completed } : task
       ));
+      setClickedTask(null);
+    }
+  };
+
+  const handleEditFromClick = () => {
+    if (clickedTask) {
+      startEditTask(clickedTask);
+      setClickedTask(null);
     }
   };
 
@@ -110,6 +159,89 @@ export const TaskListScreen: React.FC = () => {
     }
   };
 
+  const handleClearAllCompleted = () => {
+    setTasks(tasks.filter(task => !task.completed));
+  };
+
+  const handleIconButtonPress = (task: Task) => {
+    setIconPickerTask(task);
+    setShowIconPicker(true);
+  };
+
+  const isTaskOverdue = (task: Task): boolean => {
+    if (!task.dueDate || task.completed) return false;
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const dueDate = new Date(task.dueDate);
+    dueDate.setHours(0, 0, 0, 0);
+    return dueDate < today;
+  };
+
+  const handleOverdueIconPress = (task: Task) => {
+    setOverdueTask(task);
+  };
+
+  const handleMarkOverdueAsCompleted = () => {
+    if (overdueTask) {
+      const updatedTasks = tasks.map(task =>
+        task.id === overdueTask.id ? { ...task, completed: true } : task
+      );
+      setTasks(updatedTasks);
+      playTaskComplete();
+      setOverdueTask(null);
+    }
+  };
+
+  const handleExtendDueDate = () => {
+    if (overdueTask) {
+      // Open edit modal for this task
+      setEditingTask(overdueTask);
+      setEditText(overdueTask.title || overdueTask.text);
+      setEditDescription(overdueTask.description || '');
+      setTypedTaskDueDate(overdueTask.dueDate);
+      setIsEditingTitle(true);
+      setIsKeyboardVisibleInEdit(true);
+      setShowCalendar(true);
+      setOverdueTask(null);
+    }
+  };
+
+  const handleIconSelect = (iconName: string) => {
+    if (iconPickerTask) {
+      const currentIcons = iconPickerTask.icons || [];
+      
+      // If icon is already selected, remove it
+      if (currentIcons.includes(iconName)) {
+        const updatedTasks = tasks.map(task =>
+          task.id === iconPickerTask.id 
+            ? { ...task, icons: currentIcons.filter(icon => icon !== iconName) } 
+            : task
+        );
+        setTasks(updatedTasks);
+        // Update iconPickerTask state
+        setIconPickerTask({
+          ...iconPickerTask,
+          icons: currentIcons.filter(icon => icon !== iconName)
+        });
+      } 
+      // If less than 3 icons, add the new one
+      else if (currentIcons.length < 3) {
+        const updatedTasks = tasks.map(task =>
+          task.id === iconPickerTask.id 
+            ? { ...task, icons: [...currentIcons, iconName] } 
+            : task
+        );
+        setTasks(updatedTasks);
+        // Update iconPickerTask state
+        setIconPickerTask({
+          ...iconPickerTask,
+          icons: [...currentIcons, iconName]
+        });
+      }
+      // If already has 3 icons, don't add more (could show a message, but for now just ignore)
+    }
+  };
+
   const toggleSelectionMode = () => {
     setIsSelectionMode(!isSelectionMode);
     setSelectedTaskIds(new Set());
@@ -125,7 +257,7 @@ export const TaskListScreen: React.FC = () => {
     }
   };
 
-  const markSelectedAsDone = () => {
+  const markSelectedAsDone = async () => {
     // Check if all selected tasks are already completed
     const selectedTasks = tasks.filter(t => selectedTaskIds.has(t.id));
     const allCompleted = selectedTasks.length > 0 && selectedTasks.every(t => t.completed);
@@ -140,7 +272,22 @@ export const TaskListScreen: React.FC = () => {
     if (!allCompleted) {
       const newlyCompleted = tasks.filter(t => selectedTaskIds.has(t.id) && !t.completed);
       if (newlyCompleted.length > 0) {
-        playTaskComplete();
+      playTaskComplete();
+        
+        // Award coins for completing tasks
+        const currentCoins = await loadCoins();
+        let coinsToAdd = 0;
+        
+        if (newlyCompleted.length === 3) {
+          // Complete 3 tasks = +5 coins
+          coinsToAdd = 5;
+        } else {
+          // Complete 1 task = +1 coin per task
+          coinsToAdd = newlyCompleted.length;
+        }
+        
+        const newCoins = currentCoins + coinsToAdd;
+        await saveCoins(newCoins);
       }
     }
     setSelectedTaskIds(new Set());
@@ -274,12 +421,12 @@ export const TaskListScreen: React.FC = () => {
     // Use title if available, otherwise fall back to text for backward compatibility
     const displayTitle = item.title || item.text;
     return (
-      <TouchableOpacity 
+    <TouchableOpacity 
         style={[
           styles.taskRow,
           isSelectionMode && isSelected && styles.taskRowSelected
         ]} 
-        onPress={() => toggleTask(item.id)}
+      onPress={() => toggleTask(item.id)}
         onLongPress={() => {
           if (!isSelectionMode) {
             handleTaskLongPress(item);
@@ -287,8 +434,8 @@ export const TaskListScreen: React.FC = () => {
             startEditTask(item);
           }
         }}
-        activeOpacity={0.7}
-      >
+      activeOpacity={0.7}
+    >
         <View style={[
           styles.checkbox,
           isSelectionMode && styles.checkboxSelection
@@ -298,20 +445,53 @@ export const TaskListScreen: React.FC = () => {
           ) : (
             item.completed && <View style={styles.checkboxFilled} />
           )}
+      </View>
+      {item.icons && item.icons.length > 0 && (
+        <View style={styles.taskIconsContainer}>
+          {item.icons.map((iconName, index) => (
+            <Image 
+              key={index}
+              source={iconMap[iconName]} 
+              style={styles.taskIcon}
+              resizeMode="contain"
+            />
+          ))}
         </View>
-        <View style={styles.taskContent}>
-          <Text style={[
-            styles.taskText,
-            item.completed && styles.taskTextCompleted
+      )}
+      <View style={styles.taskContent}>
+        <Text style={[
+          styles.taskText,
+          item.completed && styles.taskTextCompleted
           ]} numberOfLines={1} ellipsizeMode="tail">
             {displayTitle}
-          </Text>
-          {item.dueDate && (
+        </Text>
+        {item.dueDate && (
+          <View style={styles.taskDateContainer}>
             <Text style={styles.taskDate}>{formatDate(item.dueDate)}</Text>
-          )}
-        </View>
-      </TouchableOpacity>
-    );
+            {isTaskOverdue(item) && (
+              <TouchableOpacity
+                onPress={() => handleOverdueIconPress(item)}
+                style={styles.overdueIcon}
+                hitSlop={{ top: 5, bottom: 5, left: 5, right: 5 }}
+              >
+                <Text style={styles.overdueIconText}>!</Text>
+              </TouchableOpacity>
+            )}
+          </View>
+        )}
+      </View>
+      {!isSelectionMode && (
+        <TouchableOpacity
+          onPress={() => handleIconButtonPress(item)}
+          onPressIn={(e) => e.stopPropagation()}
+          style={styles.addIconButton}
+          hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+        >
+          <Text style={[styles.addIconText, { color: theme.headerText }]}>+</Text>
+        </TouchableOpacity>
+      )}
+    </TouchableOpacity>
+  );
   };
 
   if (isLoading || !fontsLoaded) {
@@ -319,11 +499,11 @@ export const TaskListScreen: React.FC = () => {
       <View style={styles.outerContainer}>
         <View style={styles.bezel}>
           <View style={styles.screen}>
-            <View style={styles.header}>
-              <Text style={styles.headerText}>TASKS</Text>
-            </View>
-            <View style={styles.emptyState}>
-              <Text style={styles.emptyText}>LOADING...</Text>
+        <View style={styles.header}>
+          <Text style={styles.headerText}>TASKS</Text>
+        </View>
+        <View style={styles.emptyState}>
+          <Text style={styles.emptyText}>LOADING...</Text>
             </View>
           </View>
         </View>
@@ -349,7 +529,17 @@ export const TaskListScreen: React.FC = () => {
           
           <View style={[styles.header, { backgroundColor: theme.headerBackground, borderBottomColor: theme.headerBorder }]}>
             <Text style={[styles.headerText, { color: theme.headerText }]}>TASKS</Text>
-            <TouchableOpacity 
+            {!isSelectionMode && (
+              <View style={styles.headerCenter}>
+                <TouchableOpacity
+                  onPress={() => setShowCompletedTasks(true)}
+                  style={styles.headerButton}
+                >
+                  <Text style={[styles.headerButtonText, { color: theme.headerText }]}>COMPLETED</Text>
+                </TouchableOpacity>
+              </View>
+            )}
+            <TouchableOpacity
               onPress={toggleSelectionMode}
               style={styles.headerButton}
             >
@@ -359,18 +549,18 @@ export const TaskListScreen: React.FC = () => {
             </TouchableOpacity>
           </View>
 
-          <FlatList
-            data={tasks}
-            renderItem={renderTask}
-            keyExtractor={item => item.id}
-            style={styles.list}
-            ListEmptyComponent={
-              <View style={styles.emptyState}>
+      <FlatList
+        data={tasks.filter(task => !task.completed)}
+        renderItem={renderTask}
+        keyExtractor={item => item.id}
+        style={styles.list}
+        ListEmptyComponent={
+          <View style={styles.emptyState}>
                 <Text style={[styles.emptyText, { color: theme.iconText }]}>NO TASKS</Text>
                 <Text style={[styles.emptySubtext, { color: theme.iconText }]}>TAP NEW TASK TO ADD</Text>
-              </View>
-            }
-          />
+          </View>
+        }
+      />
 
           {isSelectionMode ? (
             <View style={[styles.footer, { borderTopColor: theme.headerBorder }]}>
@@ -404,7 +594,7 @@ export const TaskListScreen: React.FC = () => {
                   })()}
                 </Text>
               </TouchableOpacity>
-              <View style={styles.buttonSpacer} />
+        <View style={styles.buttonSpacer} />
               <TouchableOpacity 
                 onPress={deleteSelectedTasks}
                 disabled={selectedTaskIds.size === 0}
@@ -423,8 +613,8 @@ export const TaskListScreen: React.FC = () => {
             </View>
           ) : (
             <View style={[styles.footer, { borderTopColor: theme.headerBorder }]}>
-              <PalmButton 
-                title="NEW TASK" 
+        <PalmButton 
+          title="NEW TASK" 
                 onPress={handleNewTaskPress}
                 theme={theme}
               />
@@ -613,6 +803,188 @@ export const TaskListScreen: React.FC = () => {
             </View>
           )}
 
+          {/* Icon Picker Modal */}
+          <Modal
+            visible={showIconPicker}
+            transparent={true}
+            animationType="fade"
+            onRequestClose={() => {
+              setShowIconPicker(false);
+              setIconPickerTask(null);
+            }}
+          >
+            <View style={styles.iconPickerOverlay}>
+              <View style={[styles.iconPickerModal, { backgroundColor: theme.modalBackground, borderColor: theme.modalBorder }]}>
+                <View style={[styles.iconPickerHeader, { backgroundColor: theme.modalHeaderBackground, borderBottomColor: theme.modalHeaderBorder }]}>
+                  <Text style={[styles.iconPickerTitle, { color: theme.modalText }]}>SELECT APP</Text>
+                  <TouchableOpacity
+                    onPress={() => {
+                      setShowIconPicker(false);
+                      setIconPickerTask(null);
+                    }}
+                    style={styles.iconPickerCloseButton}
+                  >
+                    <Text style={[styles.iconPickerCloseText, { color: theme.modalText }]}>✕</Text>
+                  </TouchableOpacity>
+                </View>
+                <ScrollView 
+                  style={styles.iconPickerScroll}
+                  contentContainerStyle={styles.iconPickerGrid}
+                  showsVerticalScrollIndicator={true}
+                >
+                  {iconNames.length > 0 ? (
+                    iconNames.map((iconName) => {
+                      const isSelected = iconPickerTask?.icons?.includes(iconName) || false;
+                      const canSelect = !iconPickerTask?.icons || (iconPickerTask.icons.length < 3);
+                      const isDisabled = !isSelected && !canSelect;
+                      
+                      return (
+                        <TouchableOpacity
+                          key={iconName}
+                          onPress={() => handleIconSelect(iconName)}
+                          style={[
+                            styles.iconPickerItem, 
+                            { borderColor: theme.modalBorder },
+                            isSelected && styles.iconPickerItemSelected,
+                            isDisabled && styles.iconPickerItemDisabled
+                          ]}
+                          activeOpacity={0.7}
+                          disabled={isDisabled}
+                        >
+                          <Image
+                            source={iconMap[iconName]}
+                            style={[
+                              styles.iconPickerImage,
+                              isDisabled && styles.iconPickerImageDisabled
+                            ]}
+                            resizeMode="contain"
+                          />
+                          <Text style={[
+                            styles.iconPickerLabel, 
+                            { color: theme.modalText },
+                            isDisabled && styles.iconPickerLabelDisabled
+                          ]}>
+                            {iconName.toUpperCase()}
+                          </Text>
+                          {isSelected && (
+                            <View style={styles.iconPickerCheckmark}>
+                              <Text style={styles.iconPickerCheckmarkText}>✓</Text>
+                            </View>
+                          )}
+                        </TouchableOpacity>
+                      );
+                    })
+                  ) : (
+                    <Text style={[styles.iconPickerLabel, { color: theme.modalText }]}>
+                      NO APPS AVAILABLE
+                    </Text>
+                  )}
+                </ScrollView>
+                {iconPickerTask && (
+                  <View style={[styles.iconPickerFooter, { borderTopColor: theme.modalBorder }]}>
+                    <Text style={[styles.iconPickerFooterText, { color: theme.modalText }]}>
+                      {iconPickerTask.icons?.length || 0}/3 APPS SELECTED
+                    </Text>
+                    <TouchableOpacity
+                      onPress={() => {
+                        setShowIconPicker(false);
+                        setIconPickerTask(null);
+                      }}
+                      style={[styles.iconPickerDoneButton, { backgroundColor: theme.modalBorder, borderColor: theme.modalBorder }]}
+                    >
+                      <Text style={[styles.iconPickerDoneText, { color: '#FFFFFF' }]}>
+                        DONE
+                      </Text>
+                    </TouchableOpacity>
+                  </View>
+                )}
+              </View>
+            </View>
+          </Modal>
+
+          {/* Overdue Task Alert */}
+          <PixelAlert
+            visible={overdueTask !== null}
+            title="OVERDUE"
+            message={overdueTask ? `OVERDUE. MARK AS COMPLETED? OR EXTEND DUE DATE?` : ''}
+            buttons={[
+              {
+                text: 'MARK COMPLETED',
+                onPress: handleMarkOverdueAsCompleted,
+              },
+              {
+                text: 'EXTEND DATE',
+                onPress: handleExtendDueDate,
+              },
+              {
+                text: 'CANCEL',
+                onPress: () => setOverdueTask(null),
+                style: 'cancel',
+              },
+            ]}
+            theme={theme}
+          />
+
+          {/* Click Action Menu */}
+          <PixelAlert
+            visible={clickedTask !== null}
+            title="TASK ACTION"
+            message={clickedTask ? (clickedTask.title || clickedTask.text).toUpperCase() : ''}
+            buttons={[
+              {
+                text: clickedTask?.completed ? 'MARK UNDONE' : 'MARK AS DONE',
+                onPress: handleMarkTaskAsDone,
+              },
+              {
+                text: 'EDIT',
+                onPress: handleEditFromClick,
+              },
+              {
+                text: 'CANCEL',
+                onPress: () => setClickedTask(null),
+                style: 'cancel',
+              },
+            ]}
+            theme={theme}
+          />
+
+          {/* Completed Tasks View */}
+          {showCompletedTasks && (
+            <View style={[styles.completedTasksContainer, { backgroundColor: theme.screenBackground }]}>
+              <View style={[styles.completedTasksHeader, { backgroundColor: theme.headerBackground, borderBottomColor: theme.headerBorder }]}>
+                <Text style={[styles.completedTasksHeaderText, { color: theme.headerText }]}>COMPLETED TASKS</Text>
+                <View style={styles.completedTasksHeaderRight}>
+                  {tasks.filter(task => task.completed).length > 0 && (
+                    <TouchableOpacity
+                      onPress={handleClearAllCompleted}
+                      style={styles.clearAllButton}
+                    >
+                      <Text style={styles.clearAllButtonText}>CLEAR ALL</Text>
+                    </TouchableOpacity>
+                  )}
+                  <TouchableOpacity
+                    onPress={() => setShowCompletedTasks(false)}
+                    style={styles.closeCompletedButton}
+                  >
+                    <Text style={[styles.closeCompletedText, { color: theme.headerText }]}>✕</Text>
+                  </TouchableOpacity>
+                </View>
+              </View>
+              
+              <FlatList
+                data={tasks.filter(task => task.completed)}
+                renderItem={renderTask}
+                keyExtractor={(item) => item.id}
+                ListEmptyComponent={
+                  <View style={styles.emptyState}>
+                    <Text style={[styles.emptyText, { color: theme.iconText }]}>NO COMPLETED TASKS</Text>
+                  </View>
+                }
+                style={styles.completedTasksList}
+              />
+            </View>
+          )}
+
           {/* Long Press Menu */}
           <PixelAlert
             visible={longPressMenuTask !== null}
@@ -736,8 +1108,8 @@ export const TaskListScreen: React.FC = () => {
                 >
                   <Text style={[styles.closeTypingText, { color: theme.headerText }]}>✕</Text>
                 </TouchableOpacity>
-              </View>
-              
+      </View>
+
               <ScrollView 
                 style={styles.editTaskScrollView}
                 contentContainerStyle={styles.editTaskScrollContent}
@@ -968,10 +1340,21 @@ const styles = StyleSheet.create({
     borderBottomColor: '#000000',
     position: 'relative',
   },
+  headerCenter: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
   headerText: {
     fontFamily: 'PressStart2P_400Regular',
     fontSize: 12,
     color: '#000000',
+  },
+  headerButtons: {
+    flexDirection: 'row',
+    gap: 8,
   },
   headerButton: {
     paddingHorizontal: 8,
@@ -981,6 +1364,57 @@ const styles = StyleSheet.create({
     fontFamily: 'PressStart2P_400Regular',
     fontSize: 12,
     color: '#000000',
+  },
+  completedTasksContainer: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    zIndex: 1500,
+  },
+  completedTasksHeader: {
+    height: 60,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingHorizontal: 16,
+    borderBottomWidth: 2,
+  },
+  completedTasksHeaderText: {
+    fontFamily: 'PressStart2P_400Regular',
+    fontSize: 12,
+  },
+  completedTasksHeaderRight: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+  clearAllButton: {
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    backgroundColor: '#8B0000',
+    borderWidth: 2,
+    borderColor: '#FF0000',
+    borderRadius: 4,
+  },
+  clearAllButtonText: {
+    fontFamily: 'PressStart2P_400Regular',
+    fontSize: 8,
+    color: '#FFFFFF',
+  },
+  closeCompletedButton: {
+    width: 32,
+    height: 32,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  closeCompletedText: {
+    fontFamily: 'PressStart2P_400Regular',
+    fontSize: 18,
+  },
+  completedTasksList: {
+    flex: 1,
   },
   list: {
     flex: 1,
@@ -1014,11 +1448,32 @@ const styles = StyleSheet.create({
     height: 12,
     backgroundColor: '#000000',
   },
+  taskIconsContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginRight: 8,
+    gap: 4,
+  },
+  taskIcon: {
+    width: 24,
+    height: 24,
+  },
   taskContent: {
     flex: 1,
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
+  },
+  addIconButton: {
+    width: 24,
+    height: 24,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginLeft: 8,
+  },
+  addIconText: {
+    fontFamily: 'PressStart2P_400Regular',
+    fontSize: 16,
   },
   taskText: {
     fontFamily: 'PressStart2P_400Regular',
@@ -1028,13 +1483,33 @@ const styles = StyleSheet.create({
   },
   taskTextCompleted: {
     textDecorationLine: 'line-through',
-    color: '#999999',
+  },
+  taskDateContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginLeft: 8,
+    gap: 4,
   },
   taskDate: {
     fontFamily: 'PressStart2P_400Regular',
     fontSize: 8,
     color: '#666666',
-    marginLeft: 8,
+  },
+  overdueIcon: {
+    width: 16,
+    height: 16,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: '#FF0000',
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#000000',
+  },
+  overdueIconText: {
+    fontFamily: 'PressStart2P_400Regular',
+    fontSize: 10,
+    color: '#FFFFFF',
+    lineHeight: 12,
   },
   emptyState: {
     alignItems: 'center',
@@ -1050,6 +1525,187 @@ const styles = StyleSheet.create({
     fontSize: 8,
     color: '#000000',
     marginTop: 8,
+  },
+  iconPickerOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  iconPickerModal: {
+    width: '80%',
+    maxWidth: 400,
+    height: '70%',
+    maxHeight: 500,
+    borderRadius: 8,
+    borderWidth: 3,
+    overflow: 'hidden',
+  },
+  iconPickerHeader: {
+    height: 50,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingHorizontal: 16,
+    borderBottomWidth: 2,
+  },
+  iconPickerTitle: {
+    fontFamily: 'PressStart2P_400Regular',
+    fontSize: 10,
+  },
+  iconPickerCloseButton: {
+    width: 32,
+    height: 32,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  iconPickerCloseText: {
+    fontFamily: 'PressStart2P_400Regular',
+    fontSize: 18,
+  },
+  iconPickerScroll: {
+    flex: 1,
+    minHeight: 200,
+  },
+  iconPickerGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    padding: 12,
+    justifyContent: 'flex-start',
+    minHeight: 200,
+  },
+  iconPickerItem: {
+    width: '30%',
+    aspectRatio: 1,
+    margin: '1.5%',
+    borderWidth: 2,
+    borderRadius: 4,
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 8,
+    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+    minWidth: 80,
+    minHeight: 80,
+  },
+  iconPickerImage: {
+    width: 50,
+    height: 50,
+    marginBottom: 4,
+  },
+  iconPickerLabel: {
+    fontFamily: 'PressStart2P_400Regular',
+    fontSize: 7,
+    textAlign: 'center',
+  },
+  iconPickerItemSelected: {
+    backgroundColor: 'rgba(255, 255, 255, 0.4)',
+    borderWidth: 3,
+  },
+  iconPickerItemDisabled: {
+    opacity: 0.4,
+  },
+  iconPickerImageDisabled: {
+    opacity: 0.5,
+  },
+  iconPickerLabelDisabled: {
+    opacity: 0.5,
+  },
+  iconPickerCheckmark: {
+    position: 'absolute',
+    top: 4,
+    right: 4,
+    width: 20,
+    height: 20,
+    borderRadius: 10,
+    backgroundColor: '#4CAF50',
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 2,
+    borderColor: '#FFFFFF',
+  },
+  iconPickerCheckmarkText: {
+    color: '#FFFFFF',
+    fontSize: 12,
+    fontWeight: 'bold',
+  },
+  iconPickerFooter: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    borderTopWidth: 2,
+    borderTopColor: '#000000',
+  },
+  iconPickerFooterText: {
+    fontFamily: 'PressStart2P_400Regular',
+    fontSize: 8,
+  },
+  iconPickerDoneButton: {
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 4,
+    borderWidth: 2,
+    borderColor: '#000000',
+  },
+  iconPickerDoneText: {
+    fontFamily: 'PressStart2P_400Regular',
+    fontSize: 8,
+  },
+  iconPickerItemSelected: {
+    backgroundColor: 'rgba(255, 255, 255, 0.4)',
+    borderWidth: 3,
+  },
+  iconPickerItemDisabled: {
+    opacity: 0.4,
+  },
+  iconPickerImageDisabled: {
+    opacity: 0.5,
+  },
+  iconPickerLabelDisabled: {
+    opacity: 0.5,
+  },
+  iconPickerCheckmark: {
+    position: 'absolute',
+    top: 4,
+    right: 4,
+    width: 20,
+    height: 20,
+    borderRadius: 10,
+    backgroundColor: '#4CAF50',
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 2,
+    borderColor: '#FFFFFF',
+  },
+  iconPickerCheckmarkText: {
+    color: '#FFFFFF',
+    fontSize: 12,
+    fontWeight: 'bold',
+  },
+  iconPickerFooter: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    borderTopWidth: 2,
+    borderTopColor: '#000000',
+  },
+  iconPickerFooterText: {
+    fontFamily: 'PressStart2P_400Regular',
+    fontSize: 8,
+  },
+  iconPickerDoneButton: {
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 4,
+    borderWidth: 2,
+    borderColor: '#000000',
+  },
+  iconPickerDoneText: {
+    fontFamily: 'PressStart2P_400Regular',
+    fontSize: 8,
   },
   footer: {
     height: 60,
