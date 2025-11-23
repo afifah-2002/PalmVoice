@@ -177,54 +177,14 @@ export function PetsScreen() {
   }, [pet]);
 
 
-  // Animate revive text
-  useEffect(() => {
-    if (showRevivePopup) {
-      const pulseAnimation = Animated.loop(
-        Animated.sequence([
-          Animated.timing(revivePulseAnim, {
-            toValue: 1.2,
-            duration: 500,
-            useNativeDriver: true,
-          }),
-          Animated.timing(revivePulseAnim, {
-            toValue: 1,
-            duration: 500,
-            useNativeDriver: true,
-          }),
-        ])
-      );
-      pulseAnimation.start();
-      return () => pulseAnimation.stop();
-    }
-  }, [showRevivePopup]);
-
-  // Animate coins popup text
+  // Auto-close coins popup after 3 seconds
   useEffect(() => {
     if (showCoinsPopup) {
-      const pulseAnimation = Animated.loop(
-        Animated.sequence([
-          Animated.timing(coinsPulseAnim, {
-            toValue: 1.1,
-            duration: 400,
-            useNativeDriver: true,
-          }),
-          Animated.timing(coinsPulseAnim, {
-            toValue: 1,
-            duration: 400,
-            useNativeDriver: true,
-          }),
-        ])
-      );
-      pulseAnimation.start();
-      
-      // Auto-close after 3 seconds
       const timeout = setTimeout(() => {
         setShowCoinsPopup(false);
       }, 3000);
       
       return () => {
-        pulseAnimation.stop();
         clearTimeout(timeout);
       };
     }
@@ -800,9 +760,7 @@ export function PetsScreen() {
                 >
                   <Text style={styles.reviveCloseButtonText}>✕</Text>
                 </TouchableOpacity>
-                <Animated.View style={{ transform: [{ scale: revivePulseAnim }] }}>
-                  <Text style={styles.reviveText}>USE 5 COINS TO REVIVE</Text>
-                </Animated.View>
+                <Text style={styles.reviveText}>USE 5 COINS TO REVIVE</Text>
                 <View style={styles.reviveInfoContainer}>
                   <Text style={styles.reviveInfoText}>YOU HAVE {coins} COINS</Text>
                 </View>
@@ -830,11 +788,9 @@ export function PetsScreen() {
           {showCoinsPopup && (
             <View style={styles.coinsOverlay}>
               <View style={[styles.coinsPopup, { backgroundColor: `${PETS_THEMES[petsTheme].color}DD`, borderColor: PETS_THEMES[petsTheme].color }]}>
-                <Animated.View style={{ transform: [{ scale: coinsPulseAnim }] }}>
-                  <Text style={[styles.coinsText, { color: '#FFFFFF' }]}>
-                    {coins} : YOU HAVE {coins} COINS!
-                  </Text>
-                </Animated.View>
+                <Text style={[styles.coinsText, { color: '#FFFFFF' }]}>
+                  {coins} : YOU HAVE {coins} COINS!
+                </Text>
               </View>
             </View>
           )}
@@ -1135,22 +1091,22 @@ const styles = StyleSheet.create({
   },
   reviveCloseButton: {
     position: 'absolute',
-    top: 8,
-    right: 8,
-    width: 32,
-    height: 32,
+    top: 4,
+    right: 4,
+    width: 20,
+    height: 20,
     justifyContent: 'center',
     alignItems: 'center',
-    borderWidth: 2,
+    borderWidth: 1,
     borderColor: '#FFFFFF',
-    borderRadius: 4,
+    borderRadius: 3,
     backgroundColor: 'rgba(0, 0, 0, 0.3)',
   },
   reviveCloseButtonText: {
     fontFamily: 'PressStart2P_400Regular',
-    fontSize: 16,
+    fontSize: 10,
     color: '#FFFFFF',
-    lineHeight: 18,
+    lineHeight: 12,
   },
   reviveText: {
     fontFamily: 'PressStart2P_400Regular',
