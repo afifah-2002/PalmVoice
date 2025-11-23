@@ -74,6 +74,8 @@ export function PetsScreen() {
   const [showNameModal, setShowNameModal] = useState(false);
   const [petName, setPetName] = useState('');
   const [showKeyboard, setShowKeyboard] = useState(false);
+  const [showRenameModal, setShowRenameModal] = useState(false);
+  const [renameInput, setRenameInput] = useState('');
   const [currentCatFrame, setCurrentCatFrame] = useState(0);
   const [activeAnimation, setActiveAnimation] = useState<'feed' | 'pet' | 'play' | null>(null);
   const [animationFrame, setAnimationFrame] = useState(0);
@@ -84,6 +86,21 @@ export function PetsScreen() {
   const [coins, setCoins] = useState(10);
   const [showCoinsPopup, setShowCoinsPopup] = useState(false);
   const coinsPulseAnim = useRef(new Animated.Value(1)).current;
+  
+  // Game state
+  const [showGame, setShowGame] = useState(false);
+  const [fruits, setFruits] = useState<Array<{ id: string; type: string; x: number; animValue: Animated.Value }>>([]);
+  const gameTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const fruitSpawnIntervalRef = useRef<NodeJS.Timeout | null>(null);
+  
+  // Fruit types and images
+  const fruitTypes = ['strawberry', 'orange', 'banana', 'apple'];
+  const fruitImages = {
+    strawberry: require('../../assets/icons/strawberry.png'),
+    orange: require('../../assets/icons/orange.png'),
+    banana: require('../../assets/icons/banana.png'),
+    apple: require('../../assets/icons/apple.png'),
+  };
   
   // Cat sit animation frames
   const catSitFrames = [
@@ -234,6 +251,18 @@ export function PetsScreen() {
     return () => clearInterval(sadInterval);
   }, [pet, activeAnimation]);
 
+  // Cleanup game intervals on unmount
+  useEffect(() => {
+    return () => {
+      if (fruitSpawnIntervalRef.current) {
+        clearInterval(fruitSpawnIntervalRef.current);
+      }
+      if (gameTimerRef.current) {
+        clearTimeout(gameTimerRef.current);
+      }
+    };
+  }, []);
+
   // Handle active animations
   useEffect(() => {
     if (activeAnimation === null) {
@@ -302,6 +331,20 @@ export function PetsScreen() {
       savePet(newPet); // Save to storage
       setShowNameModal(false);
       setPetName('');
+    }
+  };
+
+  const handleRenameSubmit = () => {
+    if (renameInput.trim() && pet) {
+      const renamedPet: Pet = {
+        ...pet,
+        name: renameInput.trim().replace(/\s+/g, '').toUpperCase(), // Remove all spaces
+      };
+      setPet(renamedPet);
+      savePet(renamedPet); // Save to storage
+      setShowRenameModal(false);
+      setRenameInput('');
+      setShowKeyboard(false);
     }
   };
 
@@ -378,6 +421,71 @@ export function PetsScreen() {
       setShowRevivePopup(false);
       setActiveAnimation(null); // Reset animation to show catsit
     }
+  };
+
+  const startGame = () => {
+    setShowRevivePopup(false); // Close revive popup when game starts
+    setShowGame(true);
+    setFruits([]);
+    
+    // Spawn fruits at random intervals
+    fruitSpawnIntervalRef.current = setInterval(() => {
+      const fruitType = fruitTypes[Math.floor(Math.random() * fruitTypes.length)];
+      const x = Math.random() * (300 - 50) + 25; // Random x position (accounting for fruit size ~50px)
+      const animValue = new Animated.Value(0);
+      
+      const newFruit = {
+        id: `${Date.now()}-${Math.random()}`,
+        type: fruitType,
+        x,
+        animValue,
+      };
+      
+      setFruits((prev) => [...prev, newFruit]);
+      
+      // Animate fruit falling
+      Animated.timing(animValue, {
+        toValue: 600, // Fall to bottom of screen
+        duration: 5000, // 5 seconds
+        useNativeDriver: true,
+      }).start(() => {
+        // Remove fruit when it reaches bottom
+        setFruits((prev) => prev.filter((f) => f.id !== newFruit.id));
+      });
+    }, 800); // Spawn a new fruit every 800ms
+    
+    // End game after 20 seconds
+    gameTimerRef.current = setTimeout(() => {
+      endGame();
+    }, 20000);
+  };
+
+  const endGame = () => {
+    if (fruitSpawnIntervalRef.current) {
+      clearInterval(fruitSpawnIntervalRef.current);
+      fruitSpawnIntervalRef.current = null;
+    }
+    if (gameTimerRef.current) {
+      clearTimeout(gameTimerRef.current);
+      gameTimerRef.current = null;
+    }
+    setShowGame(false);
+    setFruits([]);
+    
+    // Reopen revive popup if still not enough coins
+    if (pet && pet.health === 0 && coins < 5) {
+      setShowRevivePopup(true);
+    }
+  };
+
+  const handleFruitTap = (fruitId: string) => {
+    // Add 1 coin
+    const newCoins = coins + 1;
+    setCoins(newCoins);
+    saveCoins(newCoins);
+    
+    // Remove fruit
+    setFruits((prev) => prev.filter((f) => f.id !== fruitId));
   };
 
   const canFeed = () => {
@@ -604,8 +712,16 @@ export function PetsScreen() {
           {/* Pet Display Area */}
           {pet ? (
             <View style={styles.petDisplayContainer}>
-              {/* Pet Name */}
-              <Text style={styles.petNameDisplay}>{pet.name}</Text>
+              {/* Pet Name - Long press to rename */}
+              <TouchableOpacity
+                onLongPress={() => {
+                  setRenameInput(pet.name);
+                  setShowRenameModal(true);
+                }}
+                activeOpacity={0.7}
+              >
+                <Text style={styles.petNameDisplay}>{pet.name}</Text>
+              </TouchableOpacity>
               
               {/* Animated Cat Sprite */}
               {pet.health === 0 ? (
@@ -702,6 +818,68 @@ export function PetsScreen() {
             </View>
           )}
 
+          {/* Rename Modal - Inside screen */}
+          {showRenameModal && (
+            <View style={styles.modalOverlay}>
+              <View style={[
+                styles.nameModal, 
+                { 
+                  backgroundColor: `${PETS_THEMES[petsTheme].color}33`,
+                  borderColor: PETS_THEMES[petsTheme].color 
+                },
+                showKeyboard && styles.nameModalWithKeyboard
+              ]}>
+                <Text style={[styles.modalTitle, { color: PETS_THEMES[petsTheme].color }]}>RENAME YOUR PET</Text>
+                <TouchableOpacity
+                  style={[
+                    styles.nameInput, 
+                    { 
+                      backgroundColor: 'rgba(0, 0, 0, 0.5)',
+                      borderColor: PETS_THEMES[petsTheme].color 
+                    }
+                  ]}
+                  onPress={() => setShowKeyboard(true)}
+                >
+                  <Text style={[styles.nameInputText, { color: renameInput ? '#FFFFFF' : '#AAAAAA' }]}>
+                    {renameInput || 'Enter name (max 12 chars)'}
+                  </Text>
+                </TouchableOpacity>
+                <View style={styles.modalButtons}>
+                  <TouchableOpacity
+                    onPress={() => {
+                      setShowRenameModal(false);
+                      setRenameInput('');
+                      setShowKeyboard(false);
+                    }}
+                    style={[
+                      styles.modalButton, 
+                      { 
+                        backgroundColor: 'rgba(0, 0, 0, 0.5)',
+                        borderColor: PETS_THEMES[petsTheme].color 
+                      }
+                    ]}
+                  >
+                    <Text style={[styles.modalButtonText, { color: PETS_THEMES[petsTheme].color }]}>CANCEL</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    onPress={handleRenameSubmit}
+                    disabled={!renameInput.trim()}
+                    style={[
+                      styles.modalButton, 
+                      { 
+                        backgroundColor: PETS_THEMES[petsTheme].color,
+                        borderColor: PETS_THEMES[petsTheme].color 
+                      }, 
+                      !renameInput.trim() && { opacity: 0.5 }
+                    ]}
+                  >
+                    <Text style={[styles.modalButtonText, { color: '#000000' }]}>OK</Text>
+                  </TouchableOpacity>
+                </View>
+              </View>
+            </View>
+          )}
+
           {/* Action Buttons - Above bottom bezel */}
           {pet && (
             <View style={styles.actionButtonsContainer}>
@@ -728,22 +906,30 @@ export function PetsScreen() {
 
           {/* Pixel Keyboard - Inside screen, appears from bottom (same as homepage) */}
           <PixelKeyboard
-            visible={showKeyboard && showNameModal}
+            visible={showKeyboard && (showNameModal || showRenameModal)}
             theme={getKeyboardTheme()}
             onKeyPress={(key: string) => {
-              if (petName.length < 12) {
+              if (showNameModal && petName.length < 12) {
                 setPetName((prev) => prev + key);
+              } else if (showRenameModal && renameInput.length < 12) {
+                setRenameInput((prev) => prev + key);
               }
             }}
             onBackspace={() => {
-              setPetName((prev) => prev.slice(0, -1));
+              if (showNameModal) {
+                setPetName((prev) => prev.slice(0, -1));
+              } else if (showRenameModal) {
+                setRenameInput((prev) => prev.slice(0, -1));
+              }
             }}
             onEnter={() => {
               setShowKeyboard(false);
             }}
             onSpace={() => {
-              if (petName.length < 12) {
+              if (showNameModal && petName.length < 12) {
                 setPetName((prev) => prev + ' ');
+              } else if (showRenameModal && renameInput.length < 12) {
+                setRenameInput((prev) => prev + ' ');
               }
             }}
             onClose={() => setShowKeyboard(false)}
@@ -765,8 +951,7 @@ export function PetsScreen() {
                   <Text style={styles.reviveInfoText}>YOU HAVE {coins} COINS</Text>
                 </View>
                 <TouchableOpacity
-                  onPress={handleRevive}
-                  disabled={coins < 5}
+                  onPress={coins >= 5 ? handleRevive : startGame}
                   style={[
                     styles.reviveButton,
                     coins < 5 && styles.reviveButtonDisabled
@@ -777,7 +962,7 @@ export function PetsScreen() {
                     styles.reviveButtonText,
                     coins < 5 && styles.reviveButtonTextDisabled
                   ]}>
-                    {coins >= 5 ? 'REVIVE' : 'NOT ENOUGH COINS'}
+                    {coins >= 5 ? 'REVIVE' : 'PLAY GAME'}
                   </Text>
                 </TouchableOpacity>
               </View>
@@ -791,6 +976,63 @@ export function PetsScreen() {
                 <Text style={[styles.coinsText, { color: '#FFFFFF' }]}>
                   {coins} : YOU HAVE {coins} COINS!
                 </Text>
+                <TouchableOpacity
+                  onPress={() => {
+                    setShowCoinsPopup(false);
+                    startGame();
+                  }}
+                  style={[styles.playToWinButton, { borderColor: PETS_THEMES[petsTheme].color }]}
+                  activeOpacity={0.8}
+                >
+                  <Text style={[styles.playToWinButtonText, { color: '#FFFFFF' }]}>
+                    PLAY TO WIN MORE!
+                  </Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          )}
+
+          {/* Fruit Game - Falling fruits mini-game */}
+          {showGame && (
+            <View style={styles.gameOverlay}>
+              <View style={styles.gameContainer}>
+                <TouchableOpacity
+                  onPress={endGame}
+                  style={styles.gameCloseButton}
+                  activeOpacity={0.8}
+                >
+                  <Text style={styles.gameCloseButtonText}>✕</Text>
+                </TouchableOpacity>
+                <Text style={[styles.gameTitle, { color: PETS_THEMES[petsTheme].color }]}>
+                  TAP THE FRUITS!
+                </Text>
+                <Text style={[styles.gameSubtitle, { color: '#FFFFFF' }]}>
+                  +1 COIN PER FRUIT
+                </Text>
+                {fruits.map((fruit) => (
+                  <Animated.View
+                    key={fruit.id}
+                    style={[
+                      styles.fruitContainer,
+                      {
+                        left: fruit.x,
+                        transform: [{ translateY: fruit.animValue }],
+                      },
+                    ]}
+                  >
+                    <TouchableOpacity
+                      onPress={() => handleFruitTap(fruit.id)}
+                      activeOpacity={0.8}
+                      style={styles.fruitButton}
+                    >
+                      <Image
+                        source={fruitImages[fruit.type as keyof typeof fruitImages]}
+                        style={styles.fruitImage}
+                        resizeMode="contain"
+                      />
+                    </TouchableOpacity>
+                  </Animated.View>
+                ))}
               </View>
             </View>
           )}
@@ -1178,5 +1420,95 @@ const styles = StyleSheet.create({
     textShadowColor: 'rgba(0, 0, 0, 0.9)',
     textShadowOffset: { width: 2, height: 2 },
     textShadowRadius: 4,
+    marginBottom: 16,
+  },
+  playToWinButton: {
+    borderWidth: 3,
+    borderRadius: 4,
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    marginTop: 8,
+  },
+  playToWinButtonText: {
+    fontFamily: 'PressStart2P_400Regular',
+    fontSize: 8,
+    textAlign: 'center',
+    textShadowColor: 'rgba(0, 0, 0, 0.9)',
+    textShadowOffset: { width: 1, height: 1 },
+    textShadowRadius: 2,
+  },
+  gameOverlay: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: 'rgba(0, 0, 0, 0.85)',
+    zIndex: 2002,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  gameContainer: {
+    width: '100%',
+    height: '100%',
+    position: 'relative',
+    overflow: 'hidden',
+  },
+  gameTitle: {
+    fontFamily: 'PressStart2P_400Regular',
+    fontSize: 18,
+    textAlign: 'center',
+    marginTop: 60,
+    marginBottom: 8,
+    textShadowColor: 'rgba(0, 0, 0, 0.9)',
+    textShadowOffset: { width: 2, height: 2 },
+    textShadowRadius: 4,
+  },
+  gameSubtitle: {
+    fontFamily: 'PressStart2P_400Regular',
+    fontSize: 10,
+    textAlign: 'center',
+    marginBottom: 20,
+    textShadowColor: 'rgba(0, 0, 0, 0.9)',
+    textShadowOffset: { width: 2, height: 2 },
+    textShadowRadius: 4,
+  },
+  gameCloseButton: {
+    position: 'absolute',
+    top: 20,
+    right: 20,
+    width: 30,
+    height: 30,
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 2,
+    borderColor: '#FFFFFF',
+    borderRadius: 4,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    zIndex: 2004,
+  },
+  gameCloseButtonText: {
+    fontFamily: 'PressStart2P_400Regular',
+    fontSize: 12,
+    color: '#FFFFFF',
+    lineHeight: 14,
+  },
+  fruitContainer: {
+    position: 'absolute',
+    top: 0,
+    width: 50,
+    height: 50,
+    zIndex: 2003,
+  },
+  fruitButton: {
+    width: '100%',
+    height: '100%',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  fruitImage: {
+    width: 50,
+    height: 50,
   },
 });
