@@ -1,426 +1,155 @@
 import { PressStart2P_400Regular, useFonts } from '@expo-google-fonts/press-start-2p';
-import * as Haptics from 'expo-haptics';
 import { useRouter } from 'expo-router';
 import React, { useEffect, useState } from 'react';
-import { StyleSheet, Text, View } from 'react-native';
-import { AppIconGrid } from '../components/AppIconGrid';
-import { AppPickerModal } from '../components/AppPickerModal';
-import { CustomModeModal } from '../components/CustomModeModal';
+import { Image, ImageBackground, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { FavoriteButtons } from '../components/FavoriteButtons';
-import { GraffitiArea } from '../components/GraffitiArea';
 import { HeaderBar } from '../components/HeaderBar';
 import { LCDStripeEffect } from '../components/LCDStripeEffect';
-import { PixelAlert } from '../components/PixelAlert';
 import { PALM_THEMES, Theme } from '../constants/palmThemes';
 import { useTheme } from '../contexts/ThemeContext';
+import { loadCoins, loadPet, loadPetsTheme, loadTasks } from '../services/storage';
+import { Task } from '../types/Task';
 
-interface AppIcon {
-  label: string;
-  route?: string;
+type PetsTheme = 'serene' | 'purple-skies' | 'orange-kiss';
+
+const PETS_THEMES = {
+  'serene': {
+    name: 'Serene',
+    background: require('../../assets/pets/backgrounds/theme1.gif'),
+    color: '#8B9B6A',
+  },
+  'purple-skies': {
+    name: 'Purple Skies',
+    background: require('../../assets/pets/backgrounds/theme2.gif'),
+    color: '#9B7BA8',
+  },
+  'orange-kiss': {
+    name: 'Orange Kiss',
+    background: require('../../assets/pets/backgrounds/theme3.gif'),
+    color: '#D4895C',
+  },
+};
+
+interface Pet {
+  type: string;
+  name: string;
+  health: number;
+  lastFed: number;
+  lastPet: number;
 }
 
-type AppIconOrEmpty = AppIcon | null;
-
-type Mode = string;
-
-const MODE_APPS: Record<Mode, AppIconOrEmpty[][]> = {
-  Work: [
-    [
-      { label: 'TO DO LIST', route: '/tasks' },
-      { label: 'CALC' },
-      { label: 'DATE BOOK' },
-    ],
-    [
-      { label: 'MAIL' },
-      { label: 'MEMO PAD' },
-      { label: 'ADDRESS' },
-    ],
-    [
-      { label: 'HOTSYNC' },
-      { label: 'MEMORY' },
-      { label: 'PREFS' },
-    ],
-    [
-      { label: 'GIRAFFE' },
-      null, // Empty slot
-      null, // Empty slot
-    ],
-    [
-      null, // Empty slot
-      null, // Empty slot
-      null, // Empty slot
-    ],
-  ],
-  Study: [
-    [
-      { label: 'MEMO PAD' },
-      { label: 'DATE BOOK' },
-      { label: 'MEMORY' },
-    ],
-    [
-      { label: 'MAIL' },
-      { label: 'CALC' },
-      { label: 'TO DO LIST', route: '/tasks' },
-    ],
-    [
-      { label: 'ADDRESS' },
-      { label: 'EXPENSE' },
-      { label: 'PREFS' },
-    ],
-    [
-      null, // Empty slot
-      null, // Empty slot
-      null, // Empty slot
-    ],
-    [
-      null, // Empty slot
-      null, // Empty slot
-      null, // Empty slot
-    ],
-  ],
-  Focus: [
-    [
-      { label: 'TO DO LIST', route: '/tasks' },
-      { label: 'MEMO PAD' },
-      { label: 'DATE BOOK' },
-    ],
-    [
-      { label: 'MEMORY' },
-      { label: 'SECURITY' },
-      { label: 'CALC' },
-    ],
-    [
-      { label: 'MAIL' },
-      { label: 'EXPENSE' },
-      { label: 'ADDRESS' },
-    ],
-    [
-      { label: 'PREFS' },
-      null, // Empty slot
-      null, // Empty slot
-    ],
-    [
-      null, // Empty slot
-      null, // Empty slot
-      null, // Empty slot
-    ],
-  ],
-  Lazy: [
-    [
-      { label: 'GIRAFFE' },
-      { label: 'MAIL' },
-      { label: 'MEMO PAD' },
-    ],
-    [
-      { label: 'ADDRESS' },
-      { label: 'TO DO LIST', route: '/tasks' },
-      { label: 'MEMORY' },
-    ],
-    [
-      null, // Empty slot
-      null, // Empty slot
-      null, // Empty slot
-    ],
-    [
-      null, // Empty slot
-      null, // Empty slot
-      null, // Empty slot
-    ],
-    [
-      null, // Empty slot
-      null, // Empty slot
-      null, // Empty slot
-    ],
-  ],
-};
+// Cat sit animation frames
+const catSitFrames = [
+  require('../../assets/pets/cat/catsit1.png'),
+  require('../../assets/pets/cat/catsit2.png'),
+  require('../../assets/pets/cat/catsit3.png'),
+  require('../../assets/pets/cat/catsit4.png'),
+];
 
 export default function LauncherScreen() {
   const router = useRouter();
-  const [cursorVisible, setCursorVisible] = useState(true);
-  const [isAppPickerOpen, setIsAppPickerOpen] = useState(false);
-  const [selectedSlot, setSelectedSlot] = useState<{ rowIndex: number; colIndex: number } | null>(null);
-  const [modeApps, setModeApps] = useState<Record<Mode, AppIconOrEmpty[][]>>(MODE_APPS);
-  const [isEditMode, setIsEditMode] = useState(false);
-  const [selectedIconForSwap, setSelectedIconForSwap] = useState<{ rowIndex: number; colIndex: number } | null>(null);
-  const [isCustomModeModalOpen, setIsCustomModeModalOpen] = useState(false);
-  const [editingModeName, setEditingModeName] = useState<string | null>(null);
-  const [duplicateAlert, setDuplicateAlert] = useState<{ visible: boolean; appLabel: string; onConfirm: () => void } | null>(null);
+  const [pet, setPet] = useState<Pet | null>(null);
+  const [coins, setCoins] = useState(10);
+  const [tasks, setTasks] = useState<Task[]>([]);
+  const [currentCatFrame, setCurrentCatFrame] = useState(0);
+  const [petsTheme, setPetsTheme] = useState<PetsTheme>('serene');
   
-  const { currentTheme, setTheme, currentMode, setMode, customModes, saveCustomMode, deleteCustomMode } = useTheme();
+  const { currentTheme, setTheme, currentMode, setMode, customModes } = useTheme();
 
   const [fontsLoaded] = useFonts({
     PressStart2P_400Regular,
   });
 
-  // Merge default and custom modes
-  const allModeApps = { ...modeApps, ...customModes };
-  const APPS = allModeApps[currentMode] || [];
-  
-  // Get all available modes (default + custom)
-  const getAllModes = (): Mode[] => {
-    const defaultModes: Mode[] = ['Work', 'Study', 'Focus', 'Lazy'];
+  // Load pet, coins, tasks, and pets theme on mount
+  useEffect(() => {
+    loadPet().then((savedPet) => {
+      if (savedPet) {
+        setPet(savedPet as Pet);
+      }
+    });
+    loadCoins().then((savedCoins) => {
+      setCoins(savedCoins);
+    });
+    loadTasks().then((loadedTasks) => {
+      setTasks(loadedTasks);
+    });
+    loadPetsTheme().then((savedTheme) => {
+      if (savedTheme) {
+        setPetsTheme(savedTheme as PetsTheme);
+      }
+    });
+  }, []);
+
+  // Animate cat sit frames
+  useEffect(() => {
+    if (!pet || pet.health === 0) {
+      return;
+    }
+    const interval = setInterval(() => {
+      setCurrentCatFrame((prev) => (prev + 1) % catSitFrames.length);
+    }, 1000);
+    return () => clearInterval(interval);
+  }, [pet]);
+
+  // Get today's tasks and overdue count
+  const getTodayTasks = () => {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    return tasks.filter(task => {
+      if (task.completed) return false;
+      if (!task.dueDate) return false;
+      const dueDate = new Date(task.dueDate);
+      dueDate.setHours(0, 0, 0, 0);
+      return dueDate.getTime() === today.getTime();
+    });
+  };
+
+  const getOverdueTasks = () => {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    return tasks.filter(task => {
+      if (task.completed) return false;
+      if (!task.dueDate) return false;
+      const dueDate = new Date(task.dueDate);
+      dueDate.setHours(0, 0, 0, 0);
+      return dueDate < today;
+    });
+  };
+
+  const todayTasks = getTodayTasks();
+  const overdueTasks = getOverdueTasks();
+
+  const handleViewTasks = () => {
+    router.push('/tasks');
+  };
+
+  const handleFeed = () => {
+    router.push('/pets');
+  };
+
+  const handlePet = () => {
+    router.push('/pets');
+  };
+
+  const handlePlay = () => {
+    router.push('/pets');
+  };
+
+  const getAllModes = (): string[] => {
+    const defaultModes: string[] = ['Work', 'Study', 'Focus', 'Lazy'];
     const customModeNames = Object.keys(customModes);
     return [...defaultModes, ...customModeNames];
   };
-  
+
   const allModes = getAllModes();
 
-  // Available apps for the picker
-  const AVAILABLE_APPS = [
-    'ADDRESS',
-    'CALC',
-    'DATE BOOK',
-    'EXPENSE',
-    'GIRAFFE',
-    'HOTSYNC',
-    'MAIL',
-    'MEMO PAD',
-    'MEMORY',
-    'PETS',
-    'PREFS',
-    'SECURITY',
-    'TO DO LIST',
-  ];
-
-  // Blinking cursor animation
-  useEffect(() => {
-    const interval = setInterval(() => {
-      setCursorVisible(prev => !prev);
-    }, 530);
-    return () => clearInterval(interval);
-  }, []);
-
-  const handleAppPress = (app: AppIcon, rowIndex: number, colIndex: number) => {
-    if (isEditMode) {
-      // In edit mode, handle icon swapping
-      if (selectedIconForSwap) {
-        // Swap the two icons
-        const { rowIndex: swapRow, colIndex: swapCol } = selectedIconForSwap;
-        if (swapRow === rowIndex && swapCol === colIndex) {
-          // Same icon, deselect
-          setSelectedIconForSwap(null);
-        } else {
-          // Swap the icons
-          const updateApps = (apps: AppIconOrEmpty[][]) => {
-            const newModeApps = [...apps];
-            const firstRow = [...newModeApps[swapRow]];
-            const firstApp = firstRow[swapCol];
-            const secondRow = [...newModeApps[rowIndex]];
-            const secondApp = secondRow[colIndex];
-            
-            firstRow[swapCol] = secondApp;
-            secondRow[colIndex] = firstApp;
-            
-            newModeApps[swapRow] = firstRow;
-            newModeApps[rowIndex] = secondRow;
-            return newModeApps;
-          };
-          
-          // Update in the appropriate state (custom modes or default modes)
-          if (customModes[currentMode]) {
-            saveCustomMode(currentMode, updateApps(customModes[currentMode]));
-          } else {
-            setModeApps((prev) => ({
-              ...prev,
-              [currentMode]: updateApps(prev[currentMode] || []),
-            }));
-          }
-          setSelectedIconForSwap(null);
-          Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-        }
-      } else {
-        // Select this icon for swapping
-        setSelectedIconForSwap({ rowIndex, colIndex });
-        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-      }
-    } else {
-      // Normal mode - open the app
-      if (app.route) {
-        router.push(app.route as any);
-      }
-    }
-  };
-
-  const handleIconLongPress = (app: AppIcon, rowIndex: number, colIndex: number) => {
-    // Haptic feedback on long press
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-    
-    // Toggle edit mode
-    setIsEditMode(true);
-    setSelectedIconForSwap(null);
-  };
-  
-  const handleDeleteIcon = (rowIndex: number, colIndex: number) => {
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-    const updateApps = (apps: AppIconOrEmpty[][]) => {
-      const newModeApps = [...apps];
-      const newRow = [...newModeApps[rowIndex]];
-      newRow[colIndex] = null;
-      newModeApps[rowIndex] = newRow;
-      return newModeApps;
-    };
-    
-    // Update in the appropriate state (custom modes or default modes)
-    if (customModes[currentMode]) {
-      saveCustomMode(currentMode, updateApps(customModes[currentMode]));
-    } else {
-      setModeApps((prev) => ({
-        ...prev,
-        [currentMode]: updateApps(prev[currentMode] || []),
-      }));
-    }
-  };
-  
-  const handleChangeIcon = (rowIndex: number, colIndex: number) => {
-    setSelectedSlot({ rowIndex, colIndex });
-    setIsAppPickerOpen(true);
-  };
-  
-  const exitEditMode = () => {
-    setIsEditMode(false);
-    setSelectedIconForSwap(null);
-  };
-
-  const handleEmptySlotPress = (rowIndex: number, colIndex: number) => {
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    setSelectedSlot({ rowIndex, colIndex });
-    setIsAppPickerOpen(true);
-  };
-
-  const handleAppSelect = (appLabel: string) => {
-    if (selectedSlot) {
-      const { rowIndex, colIndex } = selectedSlot;
-      
-      // Check if app already exists in this mode (excluding the current slot)
-      const currentApps = allModeApps[currentMode] || [];
-      let existingRowIndex: number | null = null;
-      let existingColIndex: number | null = null;
-      
-      currentApps.forEach((row, rIdx) => {
-        row.forEach((app, cIdx) => {
-          // Skip the current slot if we're changing an existing app
-          if (rIdx === rowIndex && cIdx === colIndex) {
-            return;
-          }
-          if (app !== null && app.label === appLabel) {
-            existingRowIndex = rIdx;
-            existingColIndex = cIdx;
-          }
-        });
-      });
-
-      const placeApp = () => {
-        const updateApps = (apps: AppIconOrEmpty[][]) => {
-          const newModeApps = apps.map(row => [...row]); // Deep copy
-          
-          // Place app in new location
-          newModeApps[rowIndex][colIndex] = { 
-            label: appLabel, 
-            route: appLabel === 'TO DO LIST' ? '/tasks' : undefined 
-          };
-          
-          return newModeApps;
-        };
-        
-        // Update in the appropriate state (custom modes or default modes)
-        if (customModes[currentMode]) {
-          saveCustomMode(currentMode, updateApps(customModes[currentMode]));
-        } else {
-          setModeApps((prev) => ({
-            ...prev,
-            [currentMode]: updateApps(prev[currentMode] || []),
-          }));
-        }
-
-        setIsAppPickerOpen(false);
-        setSelectedSlot(null);
-      };
-
-      // If app already exists, show confirmation dialog
-      if (existingRowIndex !== null && existingColIndex !== null) {
-        setIsAppPickerOpen(false); // Close app picker before showing alert
-        setDuplicateAlert({
-          visible: true,
-          appLabel,
-          onConfirm: placeApp,
-        });
-      } else {
-        // App doesn't exist, just place it
-        placeApp();
-      }
-    }
-  };
-
-  const handleModeChange = (mode: Mode) => {
-    if (mode === '+') {
-      // Open custom mode creation modal
-      setEditingModeName(null);
-      setIsCustomModeModalOpen(true);
-      return;
-    }
+  const handleModeChange = (mode: string) => {
+    if (mode === '+') return; // Handle custom mode creation elsewhere if needed
     setMode(mode);
-    // Initialize mode apps if they don't exist
-    if (!allModeApps[mode]) {
-      if (MODE_APPS[mode as keyof typeof MODE_APPS]) {
-        setModeApps((prev) => ({
-          ...prev,
-          [mode]: MODE_APPS[mode as keyof typeof MODE_APPS],
-        }));
-      }
-    }
   };
-  
-  const handleSaveCustomMode = (name: string, apps: AppIconOrEmpty[][]) => {
-    if (editingModeName && editingModeName !== name) {
-      // Renaming mode - delete old, save new
-      deleteCustomMode(editingModeName);
-      saveCustomMode(name, apps);
-      if (currentMode === editingModeName) {
-        setMode(name);
-      }
-    } else {
-      // New mode or same name
-      saveCustomMode(name, apps);
-      if (!editingModeName) {
-        setMode(name);
-      }
-    }
-    setIsCustomModeModalOpen(false);
-    setEditingModeName(null);
-    setIsEditMode(false);
-    setSelectedIconForSwap(null);
-  };
-  
-  const handleEditMode = (modeName: string) => {
-    setEditingModeName(modeName);
-    setIsCustomModeModalOpen(true);
-  };
-  
-  const handleDeleteCustomMode = (modeName: string) => {
-    deleteCustomMode(modeName);
-    
-    // If the deleted mode was the current mode, switch to Work mode
-    if (currentMode === modeName) {
-      setMode('Work');
-    }
-  };
-  
-  const editingModeApps = React.useMemo(() => {
-    if (editingModeName) {
-      // If editing existing custom mode, use it; otherwise start with empty grid
-      return customModes[editingModeName] || Array(5).fill(null).map(() => Array(3).fill(null));
-    }
-    // New mode - start with empty grid
-    return Array(5).fill(null).map(() => Array(3).fill(null));
-  }, [editingModeName, customModes]);
 
   const handleThemeChange = (theme: Theme) => {
     setTheme(theme);
-  };
-
-  const handleAppPickerClose = () => {
-    setIsAppPickerOpen(false);
-    setSelectedSlot(null);
   };
 
   if (!fontsLoaded) {
@@ -432,6 +161,8 @@ export default function LauncherScreen() {
       </View>
     );
   }
+
+  const theme = PALM_THEMES[currentTheme];
 
   return (
     <View style={styles.container}>
@@ -445,7 +176,7 @@ export default function LauncherScreen() {
         </View>
 
         {/* LCD Screen */}
-        <View style={[styles.screen, { backgroundColor: PALM_THEMES[currentTheme].screenBackground }]}>
+        <View style={[styles.screen, { backgroundColor: theme.screenBackground }]}>
           {/* LCD RGB subpixel stripe pattern */}
           <LCDStripeEffect />
 
@@ -455,111 +186,147 @@ export default function LauncherScreen() {
             onModeChange={handleModeChange}
             currentTheme={currentTheme}
             onThemeChange={handleThemeChange}
-            theme={PALM_THEMES[currentTheme]}
+            theme={theme}
             allModes={allModes}
             customModes={Object.keys(customModes)}
-            onEditMode={handleEditMode}
+            onEditMode={() => {}}
             maxModesReached={allModes.length >= 10}
           />
 
-          {/* App Icons Grid */}
-          <AppIconGrid
-            apps={APPS}
-            onAppPress={handleAppPress}
-            onIconLongPress={handleIconLongPress}
-            onEmptySlotPress={handleEmptySlotPress}
-            theme={PALM_THEMES[currentTheme]}
-            isEditMode={isEditMode}
-            selectedIconForSwap={selectedIconForSwap}
-            onDeleteIcon={handleDeleteIcon}
-            onChangeIcon={handleChangeIcon}
-            onExitEditMode={exitEditMode}
-          />
+          {/* Content Area */}
+          <View style={styles.contentArea}>
+            {/* Card 1: Pet Status (Top 60%) */}
+            <ImageBackground
+              source={PETS_THEMES[petsTheme].background}
+              style={[styles.petCard, { borderColor: PETS_THEMES[petsTheme].color }]}
+              resizeMode="cover"
+            >
+              <View style={styles.petCardOverlay}>
+                {pet ? (
+                  <>
+                    {/* Top Section: Pet Status */}
+                    <View style={styles.petStatusTop}>
+                      <Text style={[styles.cardTitle, { color: '#FFFFFF' }]}>PET STATUS</Text>
+                      
+                      {/* Cat Sprite */}
+                      <View style={styles.petSpriteContainer}>
+                        {pet.health === 0 ? (
+                          <Image
+                            source={require('../../assets/pets/cat/catdead.png')}
+                            style={styles.petSprite}
+                            resizeMode="contain"
+                          />
+                        ) : (
+                          <Image
+                            source={catSitFrames[currentCatFrame]}
+                            style={styles.petSprite}
+                            resizeMode="contain"
+                          />
+                        )}
+                      </View>
 
-          {/* Graffiti Area */}
-          <GraffitiArea cursorVisible={cursorVisible} theme={PALM_THEMES[currentTheme]} />
+                      {/* Pet Name */}
+                      <Text style={[styles.petName, { color: '#FFFFFF' }]}>{pet.name}</Text>
 
-          {/* App Picker Modal - Inside screen */}
-          <AppPickerModal
-            visible={isAppPickerOpen}
-            availableApps={AVAILABLE_APPS}
-            onSelect={handleAppSelect}
-            onClose={handleAppPickerClose}
-            theme={PALM_THEMES[currentTheme]}
-          />
+                      {/* Health Hearts and Bar */}
+                      <View style={styles.healthContainer}>
+                        <Image
+                          source={
+                            pet.health === 5 ? require('../../assets/pets/health/heart5 .png') :
+                            pet.health === 4 ? require('../../assets/pets/health/heart4.png') :
+                            pet.health === 3 ? require('../../assets/pets/health/heart3.png') :
+                            pet.health === 2 ? require('../../assets/pets/health/heart2.png') :
+                            pet.health === 1 ? require('../../assets/pets/health/heart1.png') :
+                            require('../../assets/pets/health/heart0.png')
+                          }
+                          style={styles.healthHeart}
+                          resizeMode="contain"
+                        />
+                        <Image
+                          source={
+                            pet.health === 5 ? require('../../assets/pets/health/bar5.png') :
+                            pet.health === 4 ? require('../../assets/pets/health/bar4.png') :
+                            pet.health === 3 ? require('../../assets/pets/health/bar3.png') :
+                            pet.health === 2 ? require('../../assets/pets/health/bar2.png') :
+                            pet.health === 1 ? require('../../assets/pets/health/bar1.png') :
+                            require('../../assets/pets/health/bar0.png')
+                          }
+                          style={styles.healthBar}
+                          resizeMode="contain"
+                        />
+                      </View>
 
-          {/* Custom Mode Modal - Inside screen */}
-          <CustomModeModal
-        visible={isCustomModeModalOpen}
-        modeName={editingModeName || ''}
-        modeApps={editingModeApps}
-        theme={PALM_THEMES[currentTheme]}
-        onSave={handleSaveCustomMode}
-        onDelete={editingModeName ? () => handleDeleteCustomMode(editingModeName) : undefined}
-        isEditingExisting={!!editingModeName}
-        onClose={() => {
-          setIsCustomModeModalOpen(false);
-          setEditingModeName(null);
-        }}
-        onAppPress={(app, rowIndex, colIndex) => {
-          // Handled in CustomModeModal
-        }}
-        onIconLongPress={(app, rowIndex, colIndex) => {
-          setIsEditMode(true);
-          setSelectedIconForSwap(null);
-        }}
-        onEmptySlotPress={(rowIndex, colIndex) => {
-          setSelectedSlot({ rowIndex, colIndex });
-          setIsAppPickerOpen(true);
-        }}
-        onDeleteIcon={(rowIndex, colIndex) => {
-          // Handled in CustomModeModal
-        }}
-        onChangeIcon={(rowIndex, colIndex) => {
-          setSelectedSlot({ rowIndex, colIndex });
-          setIsAppPickerOpen(true);
-        }}
-        isEditMode={isEditMode}
-        selectedIconForSwap={selectedIconForSwap}
-        onExitEditMode={() => {
-          setIsEditMode(false);
-          setSelectedIconForSwap(null);
-        }}
-        availableApps={AVAILABLE_APPS}
-        onAppSelect={(appLabel) => {
-          // Handled in CustomModeModal
-        }}
-        selectedSlot={selectedSlot}
-        isAppPickerOpen={isAppPickerOpen}
-        onAppPickerClose={handleAppPickerClose}
-      />
+                      {/* Coin Count */}
+                      <View style={styles.coinsContainer}>
+                        <Image
+                          source={require('../../assets/rewards/coins.png')}
+                          style={styles.coinIcon}
+                          resizeMode="contain"
+                        />
+                        <Text style={[styles.coinText, { color: '#FFFFFF' }]}>{coins} coins</Text>
+                      </View>
+                    </View>
 
-          {/* Pixel Alert for Duplicate Apps - Inside screen */}
-          {duplicateAlert && (
-            <PixelAlert
-              visible={duplicateAlert.visible}
-              title="DUPLICATE APP"
-              message={`"${duplicateAlert.appLabel}" already exists in this mode. Do you want to add it again?`}
-              buttons={[
-                {
-                  text: 'CANCEL',
-                  style: 'cancel',
-                  onPress: () => {
-                    setDuplicateAlert(null);
-                    setSelectedSlot(null);
-                  },
-                },
-                {
-                  text: 'YES',
-                  onPress: () => {
-                    duplicateAlert.onConfirm();
-                    setDuplicateAlert(null);
-                  },
-                },
-              ]}
-              theme={PALM_THEMES[currentTheme]}
-            />
-          )}
+                    {/* Bottom Section: Quick Actions */}
+                    <View style={styles.petActionsBottom}>
+                      <View style={styles.quickActions}>
+                        <TouchableOpacity
+                          onPress={handleFeed}
+                          style={[styles.actionButton, { backgroundColor: PETS_THEMES[petsTheme].color, borderColor: '#FFFFFF' }]}
+                        >
+                          <Text style={[styles.actionButtonText, { color: '#FFFFFF' }]}>FEED</Text>
+                        </TouchableOpacity>
+                        <TouchableOpacity
+                          onPress={handlePet}
+                          style={[styles.actionButton, { backgroundColor: PETS_THEMES[petsTheme].color, borderColor: '#FFFFFF' }]}
+                        >
+                          <Text style={[styles.actionButtonText, { color: '#FFFFFF' }]}>PET</Text>
+                        </TouchableOpacity>
+                        <TouchableOpacity
+                          onPress={handlePlay}
+                          style={[styles.actionButton, { backgroundColor: PETS_THEMES[petsTheme].color, borderColor: '#FFFFFF' }]}
+                        >
+                          <Text style={[styles.actionButtonText, { color: '#FFFFFF' }]}>PLAY</Text>
+                        </TouchableOpacity>
+                      </View>
+                    </View>
+                  </>
+                ) : (
+                <View style={styles.noPetContainer}>
+                  <Text style={[styles.noPetText, { color: '#FFFFFF' }]}>NO PET</Text>
+                  <TouchableOpacity
+                    onPress={() => router.push('/pets')}
+                    style={[styles.actionButton, { backgroundColor: PETS_THEMES[petsTheme].color, borderColor: '#FFFFFF' }]}
+                  >
+                    <Text style={[styles.actionButtonText, { color: '#FFFFFF' }]}>CREATE PET</Text>
+                  </TouchableOpacity>
+                </View>
+              )}
+              </View>
+            </ImageBackground>
+
+            {/* Card 2: Task Summary (Bottom 40%) */}
+            <View style={[styles.taskCard, { backgroundColor: theme.gridBoxBackground, borderColor: PETS_THEMES[petsTheme].color }]}>
+              <Text style={[styles.cardTitle, { color: theme.iconText }]}>TODAY'S TASKS</Text>
+              
+              <Text style={[styles.taskCount, { color: theme.iconText }]}>
+                {todayTasks.length} task{todayTasks.length !== 1 ? 's' : ''} due today
+              </Text>
+
+              {overdueTasks.length > 0 && (
+                <View style={styles.overdueWarning}>
+                  <Text style={styles.overdueText}>⚠️ {overdueTasks.length} overdue!</Text>
+                </View>
+              )}
+
+              <TouchableOpacity
+                onPress={handleViewTasks}
+                style={[styles.viewTasksButton, { backgroundColor: theme.modalBackground, borderColor: theme.modalBorder }]}
+              >
+                <Text style={[styles.viewTasksButtonText, { color: theme.modalText }]}>VIEW TASKS</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
         </View>
 
         {/* Favorite Buttons - Gray Bezel Bottom */}
@@ -610,5 +377,138 @@ const styles = StyleSheet.create({
     opacity: 0.98,
     borderWidth: 2,
     borderColor: '#505050',
+  },
+  contentArea: {
+    flex: 1,
+    padding: 12,
+    gap: 12,
+  },
+  petCard: {
+    flex: 0.6,
+    borderWidth: 3,
+    borderRadius: 8,
+    overflow: 'hidden',
+  },
+  petCardOverlay: {
+    flex: 1,
+    padding: 20,
+    backgroundColor: 'rgba(0, 0, 0, 0.3)',
+  },
+  petStatusTop: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'flex-start',
+    paddingTop: 12,
+  },
+  petActionsBottom: {
+    alignItems: 'center',
+    justifyContent: 'flex-end',
+    paddingBottom: 12,
+  },
+  taskCard: {
+    flex: 0.4,
+    borderWidth: 3,
+    borderRadius: 8,
+    padding: 16,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  cardTitle: {
+    fontFamily: 'PressStart2P_400Regular',
+    fontSize: 10,
+    marginBottom: 16,
+  },
+  petSpriteContainer: {
+    height: 80,
+    width: 80,
+    marginBottom: 12,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  petSprite: {
+    width: 80,
+    height: 80,
+  },
+  petName: {
+    fontFamily: 'PressStart2P_400Regular',
+    fontSize: 12,
+    marginBottom: 16,
+  },
+  healthContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    marginBottom: 16,
+  },
+  healthHeart: {
+    width: 28,
+    height: 28,
+  },
+  healthBar: {
+    width: 65,
+    height: 28,
+  },
+  coinsContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginTop: 8,
+  },
+  coinIcon: {
+    width: 24,
+    height: 24,
+  },
+  coinText: {
+    fontFamily: 'PressStart2P_400Regular',
+    fontSize: 10,
+  },
+  quickActions: {
+    flexDirection: 'row',
+    gap: 16,
+  },
+  actionButton: {
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 4,
+    borderWidth: 2,
+    minWidth: 80,
+    alignItems: 'center',
+  },
+  actionButtonText: {
+    fontFamily: 'PressStart2P_400Regular',
+    fontSize: 8,
+  },
+  noPetContainer: {
+    alignItems: 'center',
+    gap: 16,
+  },
+  noPetText: {
+    fontFamily: 'PressStart2P_400Regular',
+    fontSize: 12,
+  },
+  taskCount: {
+    fontFamily: 'PressStart2P_400Regular',
+    fontSize: 10,
+    marginBottom: 8,
+  },
+  overdueWarning: {
+    marginBottom: 12,
+  },
+  overdueText: {
+    fontFamily: 'PressStart2P_400Regular',
+    fontSize: 10,
+    color: '#FF0000',
+  },
+  viewTasksButton: {
+    paddingHorizontal: 24,
+    paddingVertical: 12,
+    borderRadius: 4,
+    borderWidth: 2,
+    minWidth: 150,
+    alignItems: 'center',
+  },
+  viewTasksButtonText: {
+    fontFamily: 'PressStart2P_400Regular',
+    fontSize: 10,
   },
 });
