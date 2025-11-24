@@ -18,6 +18,8 @@ interface Pet {
   health: number;
   lastFed: number;
   lastPet: number;
+  lastPlay?: number; // Timestamp of last play action
+  createdAt?: number; // Timestamp of midnight on creation day
 }
 
 const PETS_THEMES = {
@@ -86,6 +88,10 @@ export function PetsScreen() {
   const [coins, setCoins] = useState(10);
   const [showCoinsPopup, setShowCoinsPopup] = useState(false);
   const coinsPulseAnim = useRef(new Animated.Value(1)).current;
+  const [showTryAgainPopup, setShowTryAgainPopup] = useState(false);
+  const [tryAgainActionType, setTryAgainActionType] = useState<'feed' | 'pet' | 'play' | null>(null);
+  const tryAgainPulseAnim = useRef(new Animated.Value(1)).current;
+  const [timeUntilMidnight, setTimeUntilMidnight] = useState('');
   
   // Game state
   const [showGame, setShowGame] = useState(false);
@@ -154,7 +160,20 @@ export function PetsScreen() {
     });
     loadPet().then((savedPet) => {
       if (savedPet) {
-        setPet(savedPet as Pet);
+        // Backward compatibility: if pet doesn't have createdAt, set it to midnight of today
+        if (!savedPet.createdAt) {
+          const today = new Date();
+          today.setHours(0, 0, 0, 0);
+          const midnightTimestamp = today.getTime();
+          const updatedPet = {
+            ...savedPet,
+            createdAt: midnightTimestamp,
+          };
+          setPet(updatedPet);
+          savePet(updatedPet);
+        } else {
+          setPet(savedPet as Pet);
+        }
       }
     });
     loadCoins().then((savedCoins) => {
@@ -169,28 +188,102 @@ export function PetsScreen() {
     savePetsTheme(petsTheme);
   }, [petsTheme]);
 
-  // Health decline every 10 seconds
+  // Get midnight timestamp of today
+  const getTodayMidnight = (): number => {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    return today.getTime();
+  };
+
+  // Check if an action was already done today (since midnight)
+  const wasActionDoneToday = (lastActionTimestamp: number | undefined): boolean => {
+    if (!lastActionTimestamp) {
+      return false; // Never done
+    }
+    const todayMidnight = getTodayMidnight();
+    return lastActionTimestamp >= todayMidnight; // Action was done today
+  };
+
+  // Calculate time remaining until midnight
+  const getTimeUntilMidnight = (): string => {
+    const now = Date.now();
+    const todayMidnight = getTodayMidnight();
+    const tomorrowMidnight = todayMidnight + (24 * 60 * 60 * 1000); // Add 24 hours
+    const timeRemaining = tomorrowMidnight - now;
+    
+    const hours = Math.floor(timeRemaining / (60 * 60 * 1000));
+    const minutes = Math.floor((timeRemaining % (60 * 60 * 1000)) / (60 * 1000));
+    const seconds = Math.floor((timeRemaining % (60 * 1000)) / 1000);
+    
+    return `${hours}h ${minutes}m ${seconds}s`;
+  };
+
+  // Calculate health based on time elapsed since midnight of creation day
+  // 1 heart per 4.8 hours = 17,280,000 milliseconds
+  const calculateHealthFromTime = (pet: Pet): number => {
+    if (!pet.createdAt) {
+      // For backward compatibility, if createdAt doesn't exist, return current health
+      return pet.health;
+    }
+    
+    const now = Date.now();
+    const elapsedTime = now - pet.createdAt;
+    const hoursPerHeart = 4.8;
+    const millisecondsPerHeart = hoursPerHeart * 60 * 60 * 1000; // 17,280,000 ms
+    
+    const heartsLost = Math.floor(elapsedTime / millisecondsPerHeart);
+    const calculatedHealth = Math.max(0, 5 - heartsLost);
+    
+    return calculatedHealth;
+  };
+
+  // Update health based on time elapsed (check every minute)
   useEffect(() => {
-    if (!pet || pet.health <= 0) {
+    if (!pet) {
       return;
     }
 
-    const healthDeclineInterval = setInterval(() => {
+    const updateHealth = () => {
       setPet((currentPet) => {
-        if (!currentPet || currentPet.health <= 0) {
+        if (!currentPet) {
           return currentPet;
         }
-        const updatedPet = {
-          ...currentPet,
-          health: Math.max(0, currentPet.health - 1),
-        };
-        savePet(updatedPet); // Save to storage
         
-        return updatedPet;
+        const calculatedHealth = calculateHealthFromTime(currentPet);
+        
+        // Update health based on time calculation
+        // If current health is above calculated (from actions), reduce it to calculated
+        // If current health is below calculated (shouldn't happen, but handle it), set to calculated
+        let newHealth = currentPet.health;
+        if (currentPet.health > calculatedHealth) {
+          // Health was increased by actions, but time has passed - reduce it
+          newHealth = calculatedHealth;
+        } else if (currentPet.health < calculatedHealth) {
+          // Health is below calculated (shouldn't happen normally), set to calculated
+          newHealth = calculatedHealth;
+        }
+        
+        // Only update if health changed
+        if (newHealth !== currentPet.health) {
+          const updatedPet = {
+            ...currentPet,
+            health: newHealth,
+          };
+          savePet(updatedPet); // Save to storage
+          return updatedPet;
+        }
+        
+        return currentPet;
       });
-    }, 10000); // Every 10 seconds
+    };
 
-    return () => clearInterval(healthDeclineInterval);
+    // Update immediately
+    updateHealth();
+
+    // Then update every minute
+    const healthUpdateInterval = setInterval(updateHealth, 60000); // Every 1 minute
+
+    return () => clearInterval(healthUpdateInterval);
   }, [pet]);
 
 
@@ -206,6 +299,30 @@ export function PetsScreen() {
       };
     }
   }, [showCoinsPopup]);
+
+  // Update time for try again popup
+  useEffect(() => {
+    if (showTryAgainPopup) {
+      // Update time immediately
+      setTimeUntilMidnight(getTimeUntilMidnight());
+      
+      // Update time every second
+      const timeInterval = setInterval(() => {
+        setTimeUntilMidnight(getTimeUntilMidnight());
+      }, 1000);
+
+      // Auto-close after 5 seconds
+      const timeout = setTimeout(() => {
+        setShowTryAgainPopup(false);
+        setTryAgainActionType(null);
+      }, 5000);
+
+      return () => {
+        clearInterval(timeInterval);
+        clearTimeout(timeout);
+      };
+    }
+  }, [showTryAgainPopup]);
 
   // Animate cat sit frames (when no active animation and cat is alive)
   useEffect(() => {
@@ -320,12 +437,19 @@ export function PetsScreen() {
 
   const handleNameSubmit = () => {
     if (petName.trim()) {
+      // Get midnight of today
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      const midnightTimestamp = today.getTime();
+      
       const newPet: Pet = {
         type: 'cat',
         name: petName.trim().replace(/\s+/g, '').toUpperCase(), // Remove all spaces
         health: 5,
-        lastFed: Date.now(),
-        lastPet: Date.now(),
+        lastFed: 0, // Initialize to 0 (before today's midnight) so action can be done
+        lastPet: 0, // Initialize to 0 (before today's midnight) so action can be done
+        lastPlay: 0, // Initialize to 0 (before today's midnight) so action can be done
+        createdAt: midnightTimestamp, // Set to midnight of creation day
       };
       setPet(newPet);
       savePet(newPet); // Save to storage
@@ -354,6 +478,13 @@ export function PetsScreen() {
         // Show revive popup if cat is dead
         setShowRevivePopup(true);
       } else if (pet.health > 0 && pet.health < 5) {
+        // Check if feed was already done today
+        if (wasActionDoneToday(pet.lastFed)) {
+          setTryAgainActionType('feed');
+          setShowTryAgainPopup(true);
+          return; // Already fed today, show popup
+        }
+        
         setActiveAnimation('feed');
         const updatedPet = {
           ...pet,
@@ -372,6 +503,13 @@ export function PetsScreen() {
         // Show revive popup if cat is dead
         setShowRevivePopup(true);
       } else if (pet.health > 0 && pet.health < 5) {
+        // Check if pet was already done today
+        if (wasActionDoneToday(pet.lastPet)) {
+          setTryAgainActionType('pet');
+          setShowTryAgainPopup(true);
+          return; // Already petted today, show popup
+        }
+        
         setActiveAnimation('pet');
         const updatedPet = {
           ...pet,
@@ -390,11 +528,18 @@ export function PetsScreen() {
         // Show revive popup if cat is dead
         setShowRevivePopup(true);
       } else if (pet.health > 0 && pet.health < 5) {
+        // Check if play was already done today
+        if (wasActionDoneToday(pet.lastPlay)) {
+          setTryAgainActionType('play');
+          setShowTryAgainPopup(true);
+          return; // Already played today, show popup
+        }
+        
         setActiveAnimation('play');
         const updatedPet = {
           ...pet,
           health: pet.health + 1,
-          lastPet: Date.now(),
+          lastPlay: Date.now(),
         };
         setPet(updatedPet);
         savePet(updatedPet); // Save to storage
@@ -409,12 +554,20 @@ export function PetsScreen() {
       setCoins(newCoins);
       saveCoins(newCoins);
       
-      // Revive the pet
+      // Get midnight of today
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      const midnightTimestamp = today.getTime();
+      
+      // Revive the pet - reset createdAt to midnight of current day
+      // Reset action timestamps to 0 so actions can be done again today
       const revivedPet = {
         ...pet,
         health: 5,
-        lastFed: Date.now(),
-        lastPet: Date.now(),
+        lastFed: 0, // Reset to 0 (before today's midnight) so action can be done
+        lastPet: 0, // Reset to 0 (before today's midnight) so action can be done
+        lastPlay: 0, // Reset to 0 (before today's midnight) so action can be done
+        createdAt: midnightTimestamp, // Reset to midnight of current day
       };
       setPet(revivedPet);
       savePet(revivedPet);
@@ -992,6 +1145,38 @@ export function PetsScreen() {
             </View>
           )}
 
+          {/* Try Again Popup - Shows when action is already done today */}
+          {showTryAgainPopup && tryAgainActionType && (
+            <View style={styles.tryAgainOverlay}>
+              <View
+                style={[
+                  styles.tryAgainPopup,
+                  {
+                    backgroundColor: `${PETS_THEMES[petsTheme].color}DD`,
+                    borderColor: PETS_THEMES[petsTheme].color,
+                  },
+                ]}
+              >
+                <TouchableOpacity
+                  onPress={() => {
+                    setShowTryAgainPopup(false);
+                    setTryAgainActionType(null);
+                  }}
+                  style={styles.tryAgainCloseButton}
+                  activeOpacity={0.8}
+                >
+                  <Text style={styles.tryAgainCloseButtonText}>✕</Text>
+                </TouchableOpacity>
+                <Text style={[styles.tryAgainText, { color: '#FFFFFF' }]}>
+                  TRY AGAIN IN
+                </Text>
+                <Text style={[styles.tryAgainTime, { color: '#FFFFFF' }]}>
+                  {timeUntilMidnight}
+                </Text>
+              </View>
+            </View>
+          )}
+
           {/* Fruit Game - Falling fruits mini-game */}
           {showGame && (
             <View style={styles.gameOverlay}>
@@ -1510,5 +1695,60 @@ const styles = StyleSheet.create({
   fruitImage: {
     width: 50,
     height: 50,
+  },
+  tryAgainOverlay: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: 'rgba(0, 0, 0, 0.6)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    zIndex: 2000,
+  },
+  tryAgainPopup: {
+    borderWidth: 4,
+    borderRadius: 8,
+    padding: 32,
+    alignItems: 'center',
+    minWidth: 280,
+    position: 'relative',
+  },
+  tryAgainCloseButton: {
+    position: 'absolute',
+    top: 4,
+    right: 4,
+    width: 20,
+    height: 20,
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: '#FFFFFF',
+    borderRadius: 3,
+    backgroundColor: 'rgba(0, 0, 0, 0.3)',
+  },
+  tryAgainCloseButtonText: {
+    fontFamily: 'PressStart2P_400Regular',
+    fontSize: 10,
+    color: '#FFFFFF',
+    lineHeight: 12,
+  },
+  tryAgainText: {
+    fontFamily: 'PressStart2P_400Regular',
+    fontSize: 12,
+    textAlign: 'center',
+    marginBottom: 12,
+    textShadowColor: 'rgba(0, 0, 0, 0.9)',
+    textShadowOffset: { width: 2, height: 2 },
+    textShadowRadius: 4,
+  },
+  tryAgainTime: {
+    fontFamily: 'PressStart2P_400Regular',
+    fontSize: 14,
+    textAlign: 'center',
+    textShadowColor: 'rgba(0, 0, 0, 0.9)',
+    textShadowOffset: { width: 2, height: 2 },
+    textShadowRadius: 4,
   },
 });
