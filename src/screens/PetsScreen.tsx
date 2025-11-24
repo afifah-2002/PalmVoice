@@ -1,12 +1,14 @@
 import { PressStart2P_400Regular, useFonts } from '@expo-google-fonts/press-start-2p';
 import { router } from 'expo-router';
 import React, { useEffect, useRef, useState } from 'react';
-import { Animated, Image, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { Animated, Image, ImageBackground, Share, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import ViewShot from 'react-native-view-shot';
 import { FavoriteButtons } from '../components/FavoriteButtons';
 import { PixelKeyboard } from '../components/PixelKeyboard';
 import { PALM_THEMES, PalmTheme } from '../constants/palmThemes';
 import { useTheme } from '../contexts/ThemeContext';
-import { loadCoins, loadPet, loadPetsTheme, saveCoins, savePet, savePetsTheme } from '../services/storage';
+import { loadCoins, loadPet, loadPetsTheme, loadTasks, saveCoins, savePet, savePetsTheme } from '../services/storage';
+import { Task } from '../types/Task';
 
 type PetsTheme = 'serene' | 'purple-skies' | 'orange-kiss';
 type PetType = 'none' | 'cat' | 'panda' | 'penguin';
@@ -72,6 +74,7 @@ export function PetsScreen() {
   };
   const [showThemeDropdown, setShowThemeDropdown] = useState(false);
   const [showPetDropdown, setShowPetDropdown] = useState(false);
+  const [showActionsDropdown, setShowActionsDropdown] = useState(false);
   const [pet, setPet] = useState<Pet | null>(null);
   const [showNameModal, setShowNameModal] = useState(false);
   const [petName, setPetName] = useState('');
@@ -89,6 +92,9 @@ export function PetsScreen() {
   const [coins, setCoins] = useState(10);
   const [showCoinsPopup, setShowCoinsPopup] = useState(false);
   const coinsPulseAnim = useRef(new Animated.Value(1)).current;
+  const [showStreakPopup, setShowStreakPopup] = useState(false);
+  const [tasks, setTasks] = useState<Task[]>([]);
+  const shareViewRef = useRef<ViewShot>(null);
   const [showTryAgainPopup, setShowTryAgainPopup] = useState(false);
   const [tryAgainActionType, setTryAgainActionType] = useState<'feed' | 'pet' | 'play' | null>(null);
   const tryAgainPulseAnim = useRef(new Animated.Value(1)).current;
@@ -181,6 +187,9 @@ export function PetsScreen() {
       setCoins(savedCoins);
       // Ensure coins are saved (in case it's the first time)
       saveCoins(savedCoins);
+    });
+    loadTasks().then((loadedTasks) => {
+      setTasks(loadedTasks);
     });
   }, []);
 
@@ -428,6 +437,60 @@ export function PetsScreen() {
     setShowThemeDropdown(false);
   };
 
+  const getThemeDisplayName = (theme: PetsTheme): string => {
+    const name = PETS_THEMES[theme].name;
+    // Split "Orange Kiss" and "Purple Skies" into two lines with spacing
+    if (name === 'Orange Kiss') {
+      return 'ORANGE\n\nKISS';
+    }
+    if (name === 'Purple Skies') {
+      return 'PURPLE\n\nSKIES';
+    }
+    return name;
+  };
+
+  const calculateStreak = (pet: Pet | null): number => {
+    if (!pet || !pet.createdAt) {
+      return 0;
+    }
+    
+    // Get midnight of today
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const todayTimestamp = today.getTime();
+    
+    // Get midnight of creation day
+    const creationDate = new Date(pet.createdAt);
+    creationDate.setHours(0, 0, 0, 0);
+    const creationTimestamp = creationDate.getTime();
+    
+    // Calculate days difference (including today)
+    const daysDifference = Math.floor((todayTimestamp - creationTimestamp) / (24 * 60 * 60 * 1000));
+    
+    // Streak is days alive (including creation day), so add 1
+    return Math.max(1, daysDifference + 1);
+  };
+
+  const handleShareStreak = async () => {
+    if (!pet || !shareViewRef.current) {
+      return;
+    }
+    
+    try {
+      const uri = await shareViewRef.current.capture();
+      await Share.share({
+        url: uri,
+        message: `🔥 ${pet.name} has been alive for ${calculateStreak(pet)} ${calculateStreak(pet) === 1 ? 'day' : 'days'}! Keep the streak going! 🐱`,
+      });
+    } catch (error) {
+      console.error('Error sharing streak:', error);
+    }
+  };
+
+  const getCompletedTasksCount = (): number => {
+    return tasks.filter(task => task.completed).length;
+  };
+
   const handlePetSelect = (petType: PetType) => {
     if (petType === 'none') {
       setPet(null);
@@ -501,7 +564,7 @@ export function PetsScreen() {
           type: pet.type,
           name: pet.name,
           health: newHealth,
-          lastFed: Date.now(),
+        lastFed: Date.now(),
           lastPet: pet.lastPet,
           lastPlay: pet.lastPlay,
           createdAt: pet.createdAt,
@@ -536,7 +599,7 @@ export function PetsScreen() {
           name: pet.name,
           health: newHealth,
           lastFed: pet.lastFed,
-          lastPet: Date.now(),
+        lastPet: Date.now(),
           lastPlay: pet.lastPlay,
           createdAt: pet.createdAt,
         };
@@ -593,7 +656,7 @@ export function PetsScreen() {
       today.setHours(0, 0, 0, 0);
       const midnightTimestamp = today.getTime();
       
-      // Revive the pet - reset createdAt to midnight of current day
+      // Revive the pet - preserve original createdAt to maintain streak
       // Reset action timestamps to 0 so actions can be done again today
       const revivedPet = {
         ...pet,
@@ -601,7 +664,8 @@ export function PetsScreen() {
         lastFed: 0, // Reset to 0 (before today's midnight) so action can be done
         lastPet: 0, // Reset to 0 (before today's midnight) so action can be done
         lastPlay: 0, // Reset to 0 (before today's midnight) so action can be done
-        createdAt: midnightTimestamp, // Reset to midnight of current day
+        // Keep original createdAt to preserve streak count (don't reset on revive)
+        createdAt: pet.createdAt || midnightTimestamp, // Preserve original creation date for streak
       };
       setPet(revivedPet);
       savePet(revivedPet);
@@ -748,6 +812,7 @@ export function PetsScreen() {
                 onPress={() => {
                   setShowThemeDropdown(!showThemeDropdown);
                   setShowPetDropdown(false);
+                  setShowActionsDropdown(false);
                 }}
                 style={[
                   styles.dropdownButton, 
@@ -758,7 +823,7 @@ export function PetsScreen() {
                 ]}
               >
                 <Text style={[styles.dropdownLabel, { color: PETS_THEMES[petsTheme].color }]}>
-                  {PETS_THEMES[petsTheme].name}
+                  {getThemeDisplayName(petsTheme)}
                 </Text>
                 <Text style={[styles.dropdownArrow, { color: PETS_THEMES[petsTheme].color }]}>▼</Text>
               </TouchableOpacity>
@@ -793,6 +858,7 @@ export function PetsScreen() {
                 onPress={() => {
                   setShowPetDropdown(!showPetDropdown);
                   setShowThemeDropdown(false);
+                  setShowActionsDropdown(false);
                 }}
                 style={[
                   styles.dropdownButton, 
@@ -848,7 +914,7 @@ export function PetsScreen() {
                   </TouchableOpacity>
                 </View>
               )}
-            </View>
+          </View>
 
             {/* Health Bar and Coins - Top Right */}
             <View style={styles.topRightContainer}>
@@ -880,21 +946,83 @@ export function PetsScreen() {
                     style={styles.healthBarImage}
                     resizeMode="contain"
                   />
-                </View>
+              </View>
               )}
               
-              {/* Coins Button */}
-              <TouchableOpacity
-                onPress={() => setShowCoinsPopup(true)}
-                style={styles.coinsButton}
-                activeOpacity={0.8}
-              >
-                <Image 
-                  source={require('../../assets/rewards/coins.png')}
-                  style={styles.coinsImage}
-                  resizeMode="contain"
-                />
-              </TouchableOpacity>
+              {/* Actions Dropdown */}
+              {pet && (
+                <View style={styles.dropdownWrapper}>
+                  <TouchableOpacity
+                    onPress={() => {
+                      setShowActionsDropdown(!showActionsDropdown);
+                      setShowThemeDropdown(false);
+                      setShowPetDropdown(false);
+                    }}
+                    style={[
+                      styles.dropdownButton, 
+                      { 
+                        backgroundColor: 'rgba(0, 0, 0, 0.7)',
+                        borderColor: PETS_THEMES[petsTheme].color
+                      }
+                    ]}
+                  >
+                    <Text style={[styles.dropdownLabel, { color: PETS_THEMES[petsTheme].color }]}>
+                      ACTIONS
+              </Text>
+                    <Text style={[styles.dropdownArrow, { color: PETS_THEMES[petsTheme].color }]}>▼</Text>
+                  </TouchableOpacity>
+
+                  {showActionsDropdown && (
+                    <View style={[styles.dropdownMenu, { backgroundColor: 'rgba(0, 0, 0, 0.85)', borderColor: PETS_THEMES[petsTheme].color }]}>
+                <TouchableOpacity
+                        onPress={() => {
+                          handleFeed();
+                          setShowActionsDropdown(false);
+                        }}
+                        style={[
+                          styles.dropdownOption,
+                          { 
+                            borderBottomColor: 'rgba(255, 255, 255, 0.2)'
+                          }
+                        ]}
+                      >
+                        <Text style={[styles.dropdownOptionText, { color: PETS_THEMES[petsTheme].color }]}>
+                          FEED
+                        </Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                        onPress={() => {
+                          handlePet();
+                          setShowActionsDropdown(false);
+                        }}
+                        style={[
+                          styles.dropdownOption,
+                          { 
+                            borderBottomColor: 'rgba(255, 255, 255, 0.2)'
+                          }
+                        ]}
+                      >
+                        <Text style={[styles.dropdownOptionText, { color: PETS_THEMES[petsTheme].color }]}>
+                          PET
+                        </Text>
+                      </TouchableOpacity>
+                      <TouchableOpacity
+                        onPress={() => {
+                          handlePlay();
+                          setShowActionsDropdown(false);
+                        }}
+                        style={[
+                          styles.dropdownOption
+                        ]}
+                      >
+                        <Text style={[styles.dropdownOptionText, { color: PETS_THEMES[petsTheme].color }]}>
+                          PLAY
+                        </Text>
+                </TouchableOpacity>
+              </View>
+                  )}
+                </View>
+              )}
             </View>
           </View>
 
@@ -902,7 +1030,7 @@ export function PetsScreen() {
           {pet ? (
             <View style={styles.petDisplayContainer}>
               {/* Pet Name - Long press to rename */}
-              <TouchableOpacity
+                <TouchableOpacity
                 onLongPress={() => {
                   setRenameInput(pet.name);
                   setShowRenameModal(true);
@@ -910,7 +1038,7 @@ export function PetsScreen() {
                 activeOpacity={0.7}
               >
                 <Text style={styles.petNameDisplay}>{pet.name}</Text>
-              </TouchableOpacity>
+                </TouchableOpacity>
               
               {/* Animated Cat Sprite */}
               {pet.health === 0 ? (
@@ -946,66 +1074,66 @@ export function PetsScreen() {
           )}
 
           {/* Name Input Modal - Inside screen */}
-          {showNameModal && (
-            <View style={styles.modalOverlay}>
-              <View style={[
-                styles.nameModal, 
-                { 
-                  backgroundColor: `${PETS_THEMES[petsTheme].color}33`,
-                  borderColor: PETS_THEMES[petsTheme].color 
+      {showNameModal && (
+        <View style={styles.modalOverlay}>
+          <View style={[
+            styles.nameModal, 
+            { 
+              backgroundColor: `${PETS_THEMES[petsTheme].color}33`,
+              borderColor: PETS_THEMES[petsTheme].color 
                 },
                 showKeyboard && styles.nameModalWithKeyboard
-              ]}>
-                <Text style={[styles.modalTitle, { color: PETS_THEMES[petsTheme].color }]}>NAME YOUR PET</Text>
-                <TouchableOpacity
-                  style={[
-                    styles.nameInput, 
-                    { 
-                      backgroundColor: 'rgba(0, 0, 0, 0.5)',
-                      borderColor: PETS_THEMES[petsTheme].color 
-                    }
-                  ]}
-                  onPress={() => setShowKeyboard(true)}
-                >
-                  <Text style={[styles.nameInputText, { color: petName ? '#FFFFFF' : '#AAAAAA' }]}>
-                    {petName || 'Enter name (max 12 chars)'}
-                  </Text>
-                </TouchableOpacity>
-                <View style={styles.modalButtons}>
-                  <TouchableOpacity
-                    onPress={() => {
-                      setShowNameModal(false);
-                      setPetName('');
-                      setShowKeyboard(false);
-                    }}
-                    style={[
-                      styles.modalButton, 
-                      { 
-                        backgroundColor: 'rgba(0, 0, 0, 0.5)',
-                        borderColor: PETS_THEMES[petsTheme].color 
-                      }
-                    ]}
-                  >
-                    <Text style={[styles.modalButtonText, { color: PETS_THEMES[petsTheme].color }]}>CANCEL</Text>
-                  </TouchableOpacity>
-                  <TouchableOpacity
-                    onPress={handleNameSubmit}
-                    disabled={!petName.trim()}
-                    style={[
-                      styles.modalButton, 
-                      { 
-                        backgroundColor: PETS_THEMES[petsTheme].color,
-                        borderColor: PETS_THEMES[petsTheme].color 
-                      }, 
-                      !petName.trim() && { opacity: 0.5 }
-                    ]}
-                  >
-                    <Text style={[styles.modalButtonText, { color: '#000000' }]}>OK</Text>
-                  </TouchableOpacity>
-                </View>
-              </View>
+          ]}>
+            <Text style={[styles.modalTitle, { color: PETS_THEMES[petsTheme].color }]}>NAME YOUR PET</Text>
+            <TouchableOpacity
+              style={[
+                styles.nameInput, 
+                { 
+                  backgroundColor: 'rgba(0, 0, 0, 0.5)',
+                  borderColor: PETS_THEMES[petsTheme].color 
+                }
+              ]}
+              onPress={() => setShowKeyboard(true)}
+            >
+              <Text style={[styles.nameInputText, { color: petName ? '#FFFFFF' : '#AAAAAA' }]}>
+                {petName || 'Enter name (max 12 chars)'}
+              </Text>
+            </TouchableOpacity>
+            <View style={styles.modalButtons}>
+              <TouchableOpacity
+                onPress={() => {
+                  setShowNameModal(false);
+                  setPetName('');
+                  setShowKeyboard(false);
+                }}
+                style={[
+                  styles.modalButton, 
+                  { 
+                    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+                    borderColor: PETS_THEMES[petsTheme].color 
+                  }
+                ]}
+              >
+                <Text style={[styles.modalButtonText, { color: PETS_THEMES[petsTheme].color }]}>CANCEL</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                onPress={handleNameSubmit}
+                disabled={!petName.trim()}
+                style={[
+                  styles.modalButton, 
+                  { 
+                    backgroundColor: PETS_THEMES[petsTheme].color,
+                    borderColor: PETS_THEMES[petsTheme].color 
+                  }, 
+                  !petName.trim() && { opacity: 0.5 }
+                ]}
+              >
+                <Text style={[styles.modalButtonText, { color: '#000000' }]}>OK</Text>
+              </TouchableOpacity>
             </View>
-          )}
+          </View>
+        </View>
+      )}
 
           {/* Rename Modal - Inside screen */}
           {showRenameModal && (
@@ -1069,60 +1197,79 @@ export function PetsScreen() {
             </View>
           )}
 
-          {/* Action Buttons - Above bottom bezel */}
-          {pet && (
-            <View style={styles.actionButtonsContainer}>
-              <TouchableOpacity
-                onPress={handleFeed}
-                style={[styles.actionButton, styles.feedButton]}
-              >
-                <Text style={styles.actionButtonText}>FEED</Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                onPress={handlePet}
-                style={[styles.actionButton, styles.petButton]}
-              >
-                <Text style={styles.actionButtonText}>PET</Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                onPress={handlePlay}
-                style={[styles.actionButton, styles.playButton]}
-              >
-                <Text style={styles.actionButtonText}>PLAY</Text>
-              </TouchableOpacity>
-            </View>
-          )}
+          {/* Bottom Bar - Coins, Shop, Streak */}
+          <View style={styles.bottomBar}>
+            <TouchableOpacity
+              onPress={() => setShowCoinsPopup(true)}
+              style={styles.bottomBarItem}
+              activeOpacity={0.8}
+            >
+              <Image 
+                source={require('../../assets/rewards/coins.png')}
+                style={styles.bottomBarIcon}
+                resizeMode="contain"
+              />
+              <Text style={[styles.bottomBarText, { color: '#FFFFFF' }]}>{coins}</Text>
+            </TouchableOpacity>
+            
+            <TouchableOpacity
+              onPress={() => setShowStreakPopup(true)}
+              style={styles.bottomBarItem}
+              activeOpacity={0.8}
+            >
+              <Image 
+                source={require('../../assets/icons/streak.png')}
+                style={styles.bottomBarIcon}
+                resizeMode="contain"
+              />
+              <Text style={[styles.bottomBarText, { color: '#FFFFFF' }]}>
+                {pet ? `${calculateStreak(pet)} DAY${calculateStreak(pet) !== 1 ? 'S' : ''}` : '0 DAYS'}
+              </Text>
+            </TouchableOpacity>
+            
+            <TouchableOpacity
+              style={styles.bottomBarItem}
+              activeOpacity={0.8}
+            >
+              <Image 
+                source={require('../../assets/icons/shop.png')}
+                style={styles.bottomBarIcon}
+                resizeMode="contain"
+              />
+              <Text style={[styles.bottomBarText, { color: '#FFFFFF' }]}>SHOP</Text>
+            </TouchableOpacity>
+          </View>
 
           {/* Pixel Keyboard - Inside screen, appears from bottom (same as homepage) */}
-          <PixelKeyboard
+      <PixelKeyboard
             visible={showKeyboard && (showNameModal || showRenameModal)}
             theme={getKeyboardTheme()}
-            onKeyPress={(key: string) => {
+        onKeyPress={(key: string) => {
               if (showNameModal && petName.length < 12) {
-                setPetName((prev) => prev + key);
+            setPetName((prev) => prev + key);
               } else if (showRenameModal && renameInput.length < 12) {
                 setRenameInput((prev) => prev + key);
-              }
-            }}
-            onBackspace={() => {
+          }
+        }}
+        onBackspace={() => {
               if (showNameModal) {
-                setPetName((prev) => prev.slice(0, -1));
+          setPetName((prev) => prev.slice(0, -1));
               } else if (showRenameModal) {
                 setRenameInput((prev) => prev.slice(0, -1));
               }
-            }}
-            onEnter={() => {
-              setShowKeyboard(false);
-            }}
-            onSpace={() => {
+        }}
+        onEnter={() => {
+          setShowKeyboard(false);
+        }}
+        onSpace={() => {
               if (showNameModal && petName.length < 12) {
-                setPetName((prev) => prev + ' ');
+            setPetName((prev) => prev + ' ');
               } else if (showRenameModal && renameInput.length < 12) {
                 setRenameInput((prev) => prev + ' ');
-              }
-            }}
-            onClose={() => setShowKeyboard(false)}
-          />
+          }
+        }}
+        onClose={() => setShowKeyboard(false)}
+      />
 
           {/* Revive Popup - Inside screen, shows when cat dies */}
           {showRevivePopup && pet && pet.health === 0 && (
@@ -1202,6 +1349,106 @@ export function PetsScreen() {
                 </TouchableOpacity>
               </View>
             </View>
+          )}
+
+          {/* Streak Popup - Shows streak and share option */}
+          {showStreakPopup && pet && (
+            <View style={styles.coinsOverlay}>
+              <View style={[styles.coinsPopup, { backgroundColor: `${PETS_THEMES[petsTheme].color}DD`, borderColor: PETS_THEMES[petsTheme].color }]}>
+                <TouchableOpacity
+                  onPress={() => setShowStreakPopup(false)}
+                  style={styles.reviveCloseButton}
+                  activeOpacity={0.8}
+                >
+                  <Text style={styles.reviveCloseButtonText}>✕</Text>
+                </TouchableOpacity>
+                <Image 
+                  source={require('../../assets/icons/streak.png')}
+                  style={styles.streakPopupIcon}
+                  resizeMode="contain"
+                />
+                <Text style={[styles.coinsText, { color: '#FFFFFF' }]}>
+                  {calculateStreak(pet)} DAY{calculateStreak(pet) !== 1 ? 'S' : ''} STREAK!
+                </Text>
+                <Text style={[styles.streakSubtext, { color: '#FFFFFF' }]}>
+                  {pet.name} HAS BEEN ALIVE FOR {calculateStreak(pet)} DAY{calculateStreak(pet) !== 1 ? 'S' : ''}!
+                </Text>
+                <TouchableOpacity
+                  onPress={() => {
+                    handleShareStreak();
+                    setShowStreakPopup(false);
+                  }}
+                  style={[styles.playToWinButton, { borderColor: PETS_THEMES[petsTheme].color, backgroundColor: PETS_THEMES[petsTheme].color }]}
+                  activeOpacity={0.8}
+                >
+                  <Text style={[styles.playToWinButtonText, { color: '#FFFFFF' }]}>
+                    SHARE STREAK
+                  </Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          )}
+
+          {/* Shareable View - Hidden, used for capturing streak image */}
+          {pet && (
+            <ViewShot
+              ref={shareViewRef}
+              style={styles.shareableView}
+              options={{ format: 'png', quality: 1.0 }}
+            >
+              <ImageBackground
+                source={PETS_THEMES[petsTheme].background}
+                style={styles.shareableBackground}
+                resizeMode="cover"
+              >
+                <View style={styles.shareableContent}>
+                  {/* Title */}
+                  <Text style={styles.shareableTitle}>PALMVOICE</Text>
+                  
+                  {/* Pet Sprite */}
+                  <View style={styles.shareableSpriteContainer}>
+                    {pet.health === 0 ? (
+                      <Image
+                        source={require('../../assets/pets/cat/catdead.png')}
+                        style={styles.shareableSprite}
+                        resizeMode="contain"
+                      />
+                    ) : (
+                      <Image
+                        source={catSitFrames[currentCatFrame]}
+                        style={styles.shareableSprite}
+                        resizeMode="contain"
+                      />
+                    )}
+                  </View>
+
+                  {/* Streak Count */}
+                  <Text style={styles.shareableStreakText}>
+                    {calculateStreak(pet)} DAY{calculateStreak(pet) !== 1 ? 'S' : ''} STREAK!
+                  </Text>
+                  
+                  {/* Streak Message */}
+                  <Text style={styles.shareableMessage}>
+                    I'VE KEPT MY PET ALIVE FOR {calculateStreak(pet)} DAY{calculateStreak(pet) !== 1 ? 'S' : ''} STRAIGHT!
+                  </Text>
+
+                  {/* Stats */}
+                  <View style={styles.shareableStats}>
+                    <View style={styles.shareableStatItem}>
+                      <Text style={styles.shareableStatIcon}>💰</Text>
+                      <Text style={styles.shareableStatText}>EARNED {coins} COINS</Text>
+                    </View>
+                    <View style={styles.shareableStatItem}>
+                      <Text style={styles.shareableStatIcon}>✅</Text>
+                      <Text style={styles.shareableStatText}>COMPLETED {getCompletedTasksCount()} TASKS</Text>
+                    </View>
+                  </View>
+
+                  {/* Download Text */}
+                  <Text style={styles.shareableDownloadText}>DOWNLOAD PALMVOICE</Text>
+                </View>
+              </ImageBackground>
+            </ViewShot>
           )}
 
           {/* Try Again Popup - Shows when action is already done today */}
@@ -1362,6 +1609,9 @@ const styles = StyleSheet.create({
   dropdownLabel: {
     fontFamily: 'PressStart2P_400Regular',
     fontSize: 7,
+    textAlign: 'center',
+    flexShrink: 1,
+    lineHeight: 10,
   },
   dropdownArrow: {
     fontFamily: 'PressStart2P_400Regular',
@@ -1444,16 +1694,43 @@ const styles = StyleSheet.create({
     fontSize: 8,
     marginTop: 10,
   },
-  actionButtonsContainer: {
+  bottomBar: {
     position: 'absolute',
     bottom: 20,
+    left: 0,
+    right: 0,
+    flexDirection: 'row',
+    justifyContent: 'space-around',
+    alignItems: 'center',
+    paddingHorizontal: 20,
+    paddingVertical: 12,
+    zIndex: 999,
+  },
+  bottomBarItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+  },
+  bottomBarIcon: {
+    width: 32,
+    height: 32,
+  },
+  bottomBarText: {
+    fontFamily: 'PressStart2P_400Regular',
+    fontSize: 10,
+  },
+  actionButtonsContainer: {
+    position: 'absolute',
+    bottom: 10,
     left: 0,
     right: 0,
     flexDirection: 'row',
     justifyContent: 'center',
     gap: 12,
     paddingHorizontal: 20,
-    marginBottom: 60, // Add space between buttons and health bar
+    marginBottom: 20, // Add space between buttons and bottom bezel
     zIndex: 999,
   },
   actionButtons: {
@@ -1681,6 +1958,102 @@ const styles = StyleSheet.create({
     textShadowColor: 'rgba(0, 0, 0, 0.9)',
     textShadowOffset: { width: 1, height: 1 },
     textShadowRadius: 2,
+  },
+  streakPopupIcon: {
+    width: 64,
+    height: 64,
+    marginBottom: 16,
+  },
+  streakSubtext: {
+    fontFamily: 'PressStart2P_400Regular',
+    fontSize: 8,
+    textAlign: 'center',
+    textShadowColor: 'rgba(0, 0, 0, 0.9)',
+    textShadowOffset: { width: 2, height: 2 },
+    textShadowRadius: 4,
+    marginBottom: 16,
+  },
+  shareableView: {
+    position: 'absolute',
+    left: -10000,
+    top: -10000,
+    width: 400,
+    height: 600,
+  },
+  shareableBackground: {
+    width: '100%',
+    height: '100%',
+  },
+  shareableContent: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: 40,
+    backgroundColor: 'rgba(0, 0, 0, 0.3)',
+  },
+  shareableTitle: {
+    fontFamily: 'PressStart2P_400Regular',
+    fontSize: 24,
+    color: '#FFFFFF',
+    marginBottom: 30,
+    textShadowColor: 'rgba(0, 0, 0, 0.9)',
+    textShadowOffset: { width: 3, height: 3 },
+    textShadowRadius: 6,
+  },
+  shareableSpriteContainer: {
+    marginBottom: 30,
+  },
+  shareableSprite: {
+    width: 150,
+    height: 150,
+  },
+  shareableStreakText: {
+    fontFamily: 'PressStart2P_400Regular',
+    fontSize: 20,
+    color: '#FFFFFF',
+    marginBottom: 20,
+    textAlign: 'center',
+    textShadowColor: 'rgba(0, 0, 0, 0.9)',
+    textShadowOffset: { width: 3, height: 3 },
+    textShadowRadius: 6,
+  },
+  shareableMessage: {
+    fontFamily: 'PressStart2P_400Regular',
+    fontSize: 10,
+    color: '#FFFFFF',
+    marginBottom: 30,
+    textAlign: 'center',
+    textShadowColor: 'rgba(0, 0, 0, 0.9)',
+    textShadowOffset: { width: 2, height: 2 },
+    textShadowRadius: 4,
+  },
+  shareableStats: {
+    marginBottom: 30,
+    gap: 15,
+  },
+  shareableStatItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+  },
+  shareableStatIcon: {
+    fontSize: 20,
+  },
+  shareableStatText: {
+    fontFamily: 'PressStart2P_400Regular',
+    fontSize: 10,
+    color: '#FFFFFF',
+    textShadowColor: 'rgba(0, 0, 0, 0.9)',
+    textShadowOffset: { width: 2, height: 2 },
+    textShadowRadius: 4,
+  },
+  shareableDownloadText: {
+    fontFamily: 'PressStart2P_400Regular',
+    fontSize: 10,
+    color: '#FFFFFF',
+    textShadowColor: 'rgba(0, 0, 0, 0.9)',
+    textShadowOffset: { width: 2, height: 2 },
+    textShadowRadius: 4,
   },
   gameOverlay: {
     position: 'absolute',

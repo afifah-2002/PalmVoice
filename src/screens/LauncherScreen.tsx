@@ -36,6 +36,7 @@ interface Pet {
   health: number;
   lastFed: number;
   lastPet: number;
+  createdAt?: number; // Timestamp of midnight on creation day
 }
 
 // Cat sit animation frames
@@ -90,6 +91,29 @@ export default function LauncherScreen() {
     }, 1000);
     return () => clearInterval(interval);
   }, [pet]);
+
+  // Calculate streak (days alive)
+  const calculateStreak = (pet: Pet | null): number => {
+    if (!pet || !pet.createdAt) {
+      return 0;
+    }
+    
+    // Get midnight of today
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const todayTimestamp = today.getTime();
+    
+    // Get midnight of creation day
+    const creationDate = new Date(pet.createdAt);
+    creationDate.setHours(0, 0, 0, 0);
+    const creationTimestamp = creationDate.getTime();
+    
+    // Calculate days difference (including today)
+    const daysDifference = Math.floor((todayTimestamp - creationTimestamp) / (24 * 60 * 60 * 1000));
+    
+    // Streak is days alive (including creation day), so add 1
+    return Math.max(1, daysDifference + 1);
+  };
 
   // Get today's tasks and overdue count
   const getTodayTasks = () => {
@@ -264,6 +288,18 @@ export default function LauncherScreen() {
                           resizeMode="contain"
                         />
                         <Text style={[styles.coinText, { color: '#FFFFFF' }]}>{coins} coins</Text>
+                      </View>
+
+                      {/* Streak Count */}
+                      <View style={styles.streakContainer}>
+                        <Image
+                          source={require('../../assets/icons/streak.png')}
+                          style={styles.streakIcon}
+                          resizeMode="contain"
+                        />
+                        <Text style={[styles.streakText, { color: '#FFFFFF' }]}>
+                          {calculateStreak(pet)} DAY{calculateStreak(pet) !== 1 ? 'S' : ''}
+                        </Text>
                       </View>
                     </View>
 
@@ -459,6 +495,20 @@ const styles = StyleSheet.create({
     height: 24,
   },
   coinText: {
+    fontFamily: 'PressStart2P_400Regular',
+    fontSize: 10,
+  },
+  streakContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginTop: 8,
+  },
+  streakIcon: {
+    width: 24,
+    height: 24,
+  },
+  streakText: {
     fontFamily: 'PressStart2P_400Regular',
     fontSize: 10,
   },
