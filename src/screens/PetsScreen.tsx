@@ -76,6 +76,7 @@ export function PetsScreen() {
   const [showNameModal, setShowNameModal] = useState(false);
   const [petName, setPetName] = useState('');
   const [showKeyboard, setShowKeyboard] = useState(false);
+  const [showFullHealthAlert, setShowFullHealthAlert] = useState(false);
   const [showRenameModal, setShowRenameModal] = useState(false);
   const [renameInput, setRenameInput] = useState('');
   const [currentCatFrame, setCurrentCatFrame] = useState(0);
@@ -251,14 +252,20 @@ export function PetsScreen() {
         
         const calculatedHealth = calculateHealthFromTime(currentPet);
         
+        // TEMPORARILY DISABLED FOR TESTING - allow manual health increases to persist
         // Update health based on time calculation
         // If current health is above calculated (from actions), reduce it to calculated
         // If current health is below calculated (shouldn't happen, but handle it), set to calculated
         let newHealth = currentPet.health;
-        if (currentPet.health > calculatedHealth) {
-          // Health was increased by actions, but time has passed - reduce it
-          newHealth = calculatedHealth;
-        } else if (currentPet.health < calculatedHealth) {
+        
+        // TEMPORARILY DISABLED: Don't reduce health if above calculated (manual increases should persist)
+        // if (currentPet.health > calculatedHealth) {
+        //   // Health was increased by actions, but time has passed - reduce it
+        //   newHealth = calculatedHealth;
+        // }
+        
+        // Only increase health if it's below calculated (shouldn't happen normally)
+        if (currentPet.health < calculatedHealth) {
           // Health is below calculated (shouldn't happen normally), set to calculated
           newHealth = calculatedHealth;
         }
@@ -477,6 +484,9 @@ export function PetsScreen() {
       if (pet.health === 0) {
         // Show revive popup if cat is dead
         setShowRevivePopup(true);
+      } else if (pet.health >= 5) {
+        // Health is already full
+        setShowFullHealthAlert(true);
       } else if (pet.health > 0 && pet.health < 5) {
         // Check if feed was already done today
         if (wasActionDoneToday(pet.lastFed)) {
@@ -486,13 +496,19 @@ export function PetsScreen() {
         }
         
         setActiveAnimation('feed');
-        const updatedPet = {
-          ...pet,
-          health: pet.health + 1,
+        const newHealth = Math.min(5, pet.health + 1); // Cap at 5
+        const updatedPet: Pet = {
+          type: pet.type,
+          name: pet.name,
+          health: newHealth,
           lastFed: Date.now(),
+          lastPet: pet.lastPet,
+          lastPlay: pet.lastPlay,
+          createdAt: pet.createdAt,
         };
         setPet(updatedPet);
         savePet(updatedPet); // Save to storage
+        console.log('Fed pet, new health:', updatedPet.health);
       }
     }
   };
@@ -502,6 +518,9 @@ export function PetsScreen() {
       if (pet.health === 0) {
         // Show revive popup if cat is dead
         setShowRevivePopup(true);
+      } else if (pet.health >= 5) {
+        // Health is already full
+        setShowFullHealthAlert(true);
       } else if (pet.health > 0 && pet.health < 5) {
         // Check if pet was already done today
         if (wasActionDoneToday(pet.lastPet)) {
@@ -511,13 +530,19 @@ export function PetsScreen() {
         }
         
         setActiveAnimation('pet');
-        const updatedPet = {
-          ...pet,
-          health: pet.health + 1,
+        const newHealth = Math.min(5, pet.health + 1); // Cap at 5
+        const updatedPet: Pet = {
+          type: pet.type,
+          name: pet.name,
+          health: newHealth,
+          lastFed: pet.lastFed,
           lastPet: Date.now(),
+          lastPlay: pet.lastPlay,
+          createdAt: pet.createdAt,
         };
         setPet(updatedPet);
         savePet(updatedPet); // Save to storage
+        console.log('Pet pet, new health:', updatedPet.health);
       }
     }
   };
@@ -527,6 +552,9 @@ export function PetsScreen() {
       if (pet.health === 0) {
         // Show revive popup if cat is dead
         setShowRevivePopup(true);
+      } else if (pet.health >= 5) {
+        // Health is already full
+        setShowFullHealthAlert(true);
       } else if (pet.health > 0 && pet.health < 5) {
         // Check if play was already done today
         if (wasActionDoneToday(pet.lastPlay)) {
@@ -536,13 +564,19 @@ export function PetsScreen() {
         }
         
         setActiveAnimation('play');
-        const updatedPet = {
-          ...pet,
-          health: pet.health + 1,
+        const newHealth = Math.min(5, pet.health + 1); // Cap at 5
+        const updatedPet: Pet = {
+          type: pet.type,
+          name: pet.name,
+          health: newHealth,
+          lastFed: pet.lastFed,
+          lastPet: pet.lastPet,
           lastPlay: Date.now(),
+          createdAt: pet.createdAt,
         };
         setPet(updatedPet);
         savePet(updatedPet); // Save to storage
+        console.log('Played with pet, new health:', updatedPet.health);
       }
     }
   };
@@ -819,8 +853,9 @@ export function PetsScreen() {
             {/* Health Bar and Coins - Top Right */}
             <View style={styles.topRightContainer}>
               {pet && (
-                <View style={styles.healthBarContainer}>
+                <View key={`health-${pet.health}-${pet.lastFed}-${pet.lastPet}-${pet.lastPlay}`} style={styles.healthBarContainer}>
                   <Image 
+                    key={`heart-${pet.health}`}
                     source={
                       pet.health === 5 ? require('../../assets/pets/health/heart5 .png') :
                       pet.health === 4 ? require('../../assets/pets/health/heart4.png') :
@@ -833,6 +868,7 @@ export function PetsScreen() {
                     resizeMode="contain"
                   />
                   <Image 
+                    key={`bar-${pet.health}`}
                     source={
                       pet.health === 5 ? require('../../assets/pets/health/bar5.png') :
                       pet.health === 4 ? require('../../assets/pets/health/bar4.png') :
@@ -1117,6 +1153,29 @@ export function PetsScreen() {
                   ]}>
                     {coins >= 5 ? 'REVIVE' : 'PLAY GAME'}
                   </Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          )}
+
+          {/* Full Health Alert Popup */}
+          {showFullHealthAlert && (
+            <View style={styles.reviveOverlay}>
+              <View style={[styles.revivePopup, { backgroundColor: `${PETS_THEMES[petsTheme].color}DD`, borderColor: PETS_THEMES[petsTheme].color }]}>
+                <TouchableOpacity
+                  onPress={() => setShowFullHealthAlert(false)}
+                  style={styles.reviveCloseButton}
+                  activeOpacity={0.8}
+                >
+                  <Text style={styles.reviveCloseButtonText}>✕</Text>
+                </TouchableOpacity>
+                <Text style={[styles.reviveText, { color: '#FFFFFF' }]}>LIFE BAR IS FULL!</Text>
+                <TouchableOpacity
+                  onPress={() => setShowFullHealthAlert(false)}
+                  style={[styles.reviveButton, { backgroundColor: PETS_THEMES[petsTheme].color, borderColor: '#FFFFFF' }]}
+                  activeOpacity={0.8}
+                >
+                  <Text style={[styles.reviveButtonText, { color: '#000000' }]}>OK</Text>
                 </TouchableOpacity>
               </View>
             </View>
