@@ -10,24 +10,141 @@ import { useTheme } from '../contexts/ThemeContext';
 import { loadCoins, loadPet, loadPetsTheme, loadTasks } from '../services/storage';
 import { Task } from '../types/Task';
 
-type PetsTheme = 'serene' | 'purple-skies' | 'orange-kiss';
+type PetsTheme = 'serene' | 'purple-skies' | 'orange-kiss' | 'cherryblossom' | 'feelslike2002' | 'feelslikechristmas' | 'fishpond' | 'glowy' | 'magical' | 'minecraft' | 'ohsoflowery' | 'peace' | 'secretgarden' | 'snowynight' | 'therapeutic' | 'waterfall' | 'anime' | 'autumn' | 'infinite' | 'moonlight';
 
-const PETS_THEMES = {
+// Theme mapping with all available themes
+const ALL_THEMES: Record<string, { name: string; background: any; color: string; price: number; exclusive?: boolean }> = {
   'serene': {
     name: 'Serene',
     background: require('../../assets/pets/backgrounds/theme1.gif'),
     color: '#8B9B6A',
+    price: 0,
   },
   'purple-skies': {
     name: 'Purple Skies',
     background: require('../../assets/pets/backgrounds/theme2.gif'),
     color: '#9B7BA8',
+    price: 0,
   },
   'orange-kiss': {
     name: 'Orange Kiss',
     background: require('../../assets/pets/backgrounds/theme3.gif'),
     color: '#D4895C',
+    price: 0,
   },
+  'cherryblossom': {
+    name: 'Cherry Blossom',
+    background: require('../../assets/pets/backgrounds/cherryblossom.jpg'),
+    color: '#E8B4CB',
+    price: 15,
+  },
+  'feelslike2002': {
+    name: 'Feels Like 2002',
+    background: require('../../assets/pets/backgrounds/feelslike2002.jpg'),
+    color: '#A8D5BA',
+    price: 15,
+  },
+  'feelslikechristmas': {
+    name: 'Feels Like Christmas',
+    background: require('../../assets/pets/backgrounds/feelslikechristmas.jpg'),
+    color: '#C8E6C9',
+    price: 15,
+  },
+  'fishpond': {
+    name: 'Fish Pond',
+    background: require('../../assets/pets/backgrounds/fishpond.jpg'),
+    color: '#81C784',
+    price: 15,
+  },
+  'glowy': {
+    name: 'Glowy',
+    background: require('../../assets/pets/backgrounds/glowy.jpg'),
+    color: '#FFB74D',
+    price: 15,
+  },
+  'magical': {
+    name: 'Magical',
+    background: require('../../assets/pets/backgrounds/magical.jpg'),
+    color: '#BA68C8',
+    price: 15,
+  },
+  'minecraft': {
+    name: 'Minecraft',
+    background: require('../../assets/pets/backgrounds/minecraft.jpg'),
+    color: '#90A4AE',
+    price: 15,
+  },
+  'ohsoflowery': {
+    name: 'Oh So Flowery',
+    background: require('../../assets/pets/backgrounds/ohsoflowery.jpg'),
+    color: '#F48FB1',
+    price: 15,
+  },
+  'peace': {
+    name: 'Peace',
+    background: require('../../assets/pets/backgrounds/peace.jpg'),
+    color: '#AED581',
+    price: 15,
+  },
+  'secretgarden': {
+    name: 'Secret Garden',
+    background: require('../../assets/pets/backgrounds/secretgarden.jpg'),
+    color: '#66BB6A',
+    price: 15,
+  },
+  'snowynight': {
+    name: 'Snowy Night',
+    background: require('../../assets/pets/backgrounds/snowynight.jpg'),
+    color: '#B0BEC5',
+    price: 15,
+  },
+  'therapeutic': {
+    name: 'Therapeutic',
+    background: require('../../assets/pets/backgrounds/therapeutic.jpg'),
+    color: '#A5D6A7',
+    price: 15,
+  },
+  'waterfall': {
+    name: 'Waterfall',
+    background: require('../../assets/pets/backgrounds/waterfall.jpg'),
+    color: '#4DB6AC',
+    price: 15,
+  },
+  'anime': {
+    name: 'Anime',
+    background: require('../../assets/pets/backgrounds/anime.gif'),
+    color: '#FF6B9D',
+    price: 30,
+    exclusive: true,
+  },
+  'autumn': {
+    name: 'Autumn',
+    background: require('../../assets/pets/backgrounds/autumn.gif'),
+    color: '#FF8A65',
+    price: 30,
+    exclusive: true,
+  },
+  'infinite': {
+    name: 'Infinite',
+    background: require('../../assets/pets/backgrounds/infinite.gif'),
+    color: '#9575CD',
+    price: 30,
+    exclusive: true,
+  },
+  'moonlight': {
+    name: 'Moonlight',
+    background: require('../../assets/pets/backgrounds/moonlight.gif'),
+    color: '#64B5F6',
+    price: 30,
+    exclusive: true,
+  },
+};
+
+// Legacy PETS_THEMES for backward compatibility
+const PETS_THEMES = {
+  'serene': ALL_THEMES['serene'],
+  'purple-skies': ALL_THEMES['purple-skies'],
+  'orange-kiss': ALL_THEMES['orange-kiss'],
 };
 
 interface Pet {
@@ -221,8 +338,8 @@ export default function LauncherScreen() {
           <View style={styles.contentArea}>
             {/* Card 1: Pet Status (Top 60%) */}
             <ImageBackground
-              source={PETS_THEMES[petsTheme].background}
-              style={[styles.petCard, { borderColor: PETS_THEMES[petsTheme].color }]}
+              source={(ALL_THEMES[petsTheme] || PETS_THEMES[petsTheme] || ALL_THEMES['serene']).background}
+              style={[styles.petCard, { borderColor: (ALL_THEMES[petsTheme] || PETS_THEMES[petsTheme] || ALL_THEMES['serene']).color }]}
               resizeMode="cover"
             >
               <View style={styles.petCardOverlay}>
@@ -308,19 +425,19 @@ export default function LauncherScreen() {
                       <View style={styles.quickActions}>
                         <TouchableOpacity
                           onPress={handleFeed}
-                          style={[styles.actionButton, { backgroundColor: PETS_THEMES[petsTheme].color, borderColor: '#FFFFFF' }]}
+                          style={[styles.actionButton, { backgroundColor: (ALL_THEMES[petsTheme] || PETS_THEMES[petsTheme] || ALL_THEMES['serene']).color, borderColor: '#FFFFFF' }]}
                         >
                           <Text style={[styles.actionButtonText, { color: '#FFFFFF' }]}>FEED</Text>
                         </TouchableOpacity>
                         <TouchableOpacity
                           onPress={handlePet}
-                          style={[styles.actionButton, { backgroundColor: PETS_THEMES[petsTheme].color, borderColor: '#FFFFFF' }]}
+                          style={[styles.actionButton, { backgroundColor: (ALL_THEMES[petsTheme] || PETS_THEMES[petsTheme] || ALL_THEMES['serene']).color, borderColor: '#FFFFFF' }]}
                         >
                           <Text style={[styles.actionButtonText, { color: '#FFFFFF' }]}>PET</Text>
                         </TouchableOpacity>
                         <TouchableOpacity
                           onPress={handlePlay}
-                          style={[styles.actionButton, { backgroundColor: PETS_THEMES[petsTheme].color, borderColor: '#FFFFFF' }]}
+                          style={[styles.actionButton, { backgroundColor: (ALL_THEMES[petsTheme] || PETS_THEMES[petsTheme] || ALL_THEMES['serene']).color, borderColor: '#FFFFFF' }]}
                         >
                           <Text style={[styles.actionButtonText, { color: '#FFFFFF' }]}>PLAY</Text>
                         </TouchableOpacity>
@@ -342,7 +459,7 @@ export default function LauncherScreen() {
             </ImageBackground>
 
             {/* Card 2: Task Summary (Bottom 40%) */}
-            <View style={[styles.taskCard, { backgroundColor: theme.gridBoxBackground, borderColor: PETS_THEMES[petsTheme].color }]}>
+            <View style={[styles.taskCard, { backgroundColor: theme.gridBoxBackground, borderColor: (ALL_THEMES[petsTheme] || PETS_THEMES[petsTheme] || ALL_THEMES['serene']).color }]}>
               <Text style={[styles.cardTitle, { color: theme.iconText }]}>TODAY'S TASKS</Text>
               
               <Text style={[styles.taskCount, { color: theme.iconText }]}>

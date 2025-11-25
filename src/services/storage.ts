@@ -5,6 +5,7 @@ const TASKS_STORAGE_KEY = '@palmvoice_tasks';
 const PETS_THEME_STORAGE_KEY = '@palmvoice_pets_theme';
 const PET_STORAGE_KEY = '@palmvoice_pet';
 const COINS_STORAGE_KEY = '@palmvoice_coins';
+const PURCHASED_THEMES_STORAGE_KEY = '@palmvoice_purchased_themes';
 
 /**
  * Save tasks to AsyncStorage
@@ -155,5 +156,39 @@ export async function loadCoins(): Promise<number> {
   } catch (error) {
     console.error('Error loading coins:', error);
     return 10; // Default to 10 coins on error
+  }
+}
+
+/**
+ * Save purchased themes to AsyncStorage
+ */
+export async function savePurchasedThemes(themes: string[]): Promise<void> {
+  try {
+    const jsonValue = JSON.stringify(themes);
+    await AsyncStorage.setItem(PURCHASED_THEMES_STORAGE_KEY, jsonValue);
+    console.log('Purchased themes saved to storage:', themes);
+  } catch (error) {
+    console.error('Error saving purchased themes:', error);
+    throw error;
+  }
+}
+
+/**
+ * Load purchased themes from AsyncStorage
+ */
+export async function loadPurchasedThemes(): Promise<string[]> {
+  try {
+    const jsonValue = await AsyncStorage.getItem(PURCHASED_THEMES_STORAGE_KEY);
+    if (jsonValue === null) {
+      // Default themes: serene, purple-skies, orange-kiss are already available
+      return ['serene', 'purple-skies', 'orange-kiss'];
+    }
+    const themes = JSON.parse(jsonValue);
+    console.log('Purchased themes loaded from storage:', themes);
+    return themes;
+  } catch (error) {
+    console.error('Error loading purchased themes:', error);
+    // Default themes on error
+    return ['serene', 'purple-skies', 'orange-kiss'];
   }
 }

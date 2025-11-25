@@ -7,10 +7,10 @@ import { FavoriteButtons } from '../components/FavoriteButtons';
 import { PixelKeyboard } from '../components/PixelKeyboard';
 import { PALM_THEMES, PalmTheme } from '../constants/palmThemes';
 import { useTheme } from '../contexts/ThemeContext';
-import { loadCoins, loadPet, loadPetsTheme, loadTasks, saveCoins, savePet, savePetsTheme } from '../services/storage';
+import { loadCoins, loadPet, loadPetsTheme, loadPurchasedThemes, loadTasks, saveCoins, savePet, savePetsTheme, savePurchasedThemes } from '../services/storage';
 import { Task } from '../types/Task';
 
-type PetsTheme = 'serene' | 'purple-skies' | 'orange-kiss';
+type PetsTheme = 'serene' | 'purple-skies' | 'orange-kiss' | 'cherryblossom' | 'feelslike2002' | 'feelslikechristmas' | 'fishpond' | 'glowy' | 'magical' | 'minecraft' | 'ohsoflowery' | 'peace' | 'secretgarden' | 'snowynight' | 'therapeutic' | 'waterfall' | 'anime' | 'autumn' | 'infinite' | 'moonlight';
 type PetType = 'none' | 'cat' | 'panda' | 'penguin';
 type PetStatus = 'happy' | 'hungry' | 'sad' | 'dead' | 'sleeping';
 
@@ -24,22 +24,141 @@ interface Pet {
   createdAt?: number; // Timestamp of midnight on creation day
 }
 
-const PETS_THEMES = {
+// Theme mapping with all available themes
+const ALL_THEMES: Record<string, { name: string; background: any; color: string; price: number; exclusive?: boolean }> = {
   'serene': {
     name: 'Serene',
     background: require('../../assets/pets/backgrounds/theme1.gif'),
-    color: '#8B9B6A', // Greenish to match serene nature theme
+    color: '#8B9B6A',
+    price: 0, // Free starter theme
   },
   'purple-skies': {
     name: 'Purple Skies',
     background: require('../../assets/pets/backgrounds/theme2.gif'),
-    color: '#9B7BA8', // Purple to match purple skies
+    color: '#9B7BA8',
+    price: 0, // Free starter theme
   },
   'orange-kiss': {
     name: 'Orange Kiss',
     background: require('../../assets/pets/backgrounds/theme3.gif'),
-    color: '#D4895C', // Orange to match orange kiss
+    color: '#D4895C',
+    price: 0, // Free starter theme
   },
+  // Regular themes - 15 coins
+  'cherryblossom': {
+    name: 'Cherry Blossom',
+    background: require('../../assets/pets/backgrounds/cherryblossom.jpg'),
+    color: '#E8B4CB',
+    price: 15,
+  },
+  'feelslike2002': {
+    name: 'Feels Like 2002',
+    background: require('../../assets/pets/backgrounds/feelslike2002.jpg'),
+    color: '#A8D5BA',
+    price: 15,
+  },
+  'feelslikechristmas': {
+    name: 'Feels Like Christmas',
+    background: require('../../assets/pets/backgrounds/feelslikechristmas.jpg'),
+    color: '#C8E6C9',
+    price: 15,
+  },
+  'fishpond': {
+    name: 'Fish Pond',
+    background: require('../../assets/pets/backgrounds/fishpond.jpg'),
+    color: '#81C784',
+    price: 15,
+  },
+  'glowy': {
+    name: 'Glowy',
+    background: require('../../assets/pets/backgrounds/glowy.jpg'),
+    color: '#FFB74D',
+    price: 15,
+  },
+  'magical': {
+    name: 'Magical',
+    background: require('../../assets/pets/backgrounds/magical.jpg'),
+    color: '#BA68C8',
+    price: 15,
+  },
+  'minecraft': {
+    name: 'Minecraft',
+    background: require('../../assets/pets/backgrounds/minecraft.jpg'),
+    color: '#90A4AE',
+    price: 15,
+  },
+  'ohsoflowery': {
+    name: 'Oh So Flowery',
+    background: require('../../assets/pets/backgrounds/ohsoflowery.jpg'),
+    color: '#F48FB1',
+    price: 15,
+  },
+  'peace': {
+    name: 'Peace',
+    background: require('../../assets/pets/backgrounds/peace.jpg'),
+    color: '#AED581',
+    price: 15,
+  },
+  'secretgarden': {
+    name: 'Secret Garden',
+    background: require('../../assets/pets/backgrounds/secretgarden.jpg'),
+    color: '#66BB6A',
+    price: 15,
+  },
+  'snowynight': {
+    name: 'Snowy Night',
+    background: require('../../assets/pets/backgrounds/snowynight.jpg'),
+    color: '#B0BEC5',
+    price: 15,
+  },
+  'therapeutic': {
+    name: 'Therapeutic',
+    background: require('../../assets/pets/backgrounds/therapeutic.jpg'),
+    color: '#A5D6A7',
+    price: 15,
+  },
+  'waterfall': {
+    name: 'Waterfall',
+    background: require('../../assets/pets/backgrounds/waterfall.jpg'),
+    color: '#4DB6AC',
+    price: 15,
+  },
+  // Exclusive themes - 30 coins
+  'anime': {
+    name: 'Anime',
+    background: require('../../assets/pets/backgrounds/anime.gif'),
+    color: '#FF6B9D',
+    price: 30,
+    exclusive: true,
+  },
+  'autumn': {
+    name: 'Autumn',
+    background: require('../../assets/pets/backgrounds/autumn.gif'),
+    color: '#FF8A65',
+    price: 30,
+    exclusive: true,
+  },
+  'infinite': {
+    name: 'Infinite',
+    background: require('../../assets/pets/backgrounds/infinite.gif'),
+    color: '#9575CD',
+    price: 30,
+    exclusive: true,
+  },
+  'moonlight': {
+    name: 'Moonlight',
+    background: require('../../assets/pets/backgrounds/moonlight.gif'),
+    color: '#64B5F6',
+    price: 30,
+    exclusive: true,
+  },
+};
+
+// Legacy PETS_THEMES for backward compatibility
+const PETS_THEMES = {
+  'serene': ALL_THEMES['serene'],
+  'purple-skies': ALL_THEMES['purple-skies'],
+  'orange-kiss': ALL_THEMES['orange-kiss'],
 };
 
 export function PetsScreen() {
@@ -52,7 +171,8 @@ export function PetsScreen() {
 
   // Create custom keyboard theme based on pets theme color
   const getKeyboardTheme = (): PalmTheme => {
-    const petsColor = PETS_THEMES[petsTheme].color;
+    const currentThemeData = ALL_THEMES[petsTheme] || PETS_THEMES[petsTheme] || ALL_THEMES['serene'];
+    const petsColor = currentThemeData.color;
     // Create a theme that matches the pets page color scheme
     return {
       ...theme,
@@ -94,6 +214,9 @@ export function PetsScreen() {
   const coinsPulseAnim = useRef(new Animated.Value(1)).current;
   const [showStreakPopup, setShowStreakPopup] = useState(false);
   const [tasks, setTasks] = useState<Task[]>([]);
+  const [purchasedThemes, setPurchasedThemes] = useState<string[]>(['serene', 'purple-skies', 'orange-kiss']);
+  const [showPurchaseError, setShowPurchaseError] = useState(false);
+  const [purchaseErrorMessage, setPurchaseErrorMessage] = useState('');
   const shareViewRef = useRef<ViewShot>(null);
   const [showShop, setShowShop] = useState(false);
   const [shopMessage, setShopMessage] = useState('Hello There!');
@@ -208,6 +331,9 @@ export function PetsScreen() {
       // Ensure coins are saved (in case it's the first time)
       saveCoins(savedCoins);
     });
+    loadPurchasedThemes().then((themes) => {
+      setPurchasedThemes(themes);
+    });
     loadTasks().then((loadedTasks) => {
       setTasks(loadedTasks);
     });
@@ -264,6 +390,10 @@ export function PetsScreen() {
     const heartsLost = Math.floor(elapsedTime / millisecondsPerHeart);
     const calculatedHealth = Math.max(0, 5 - heartsLost);
     
+    // Debug logging
+    const hoursElapsed = elapsedTime / (60 * 60 * 1000);
+    console.log(`Health calculation: ${hoursElapsed.toFixed(2)} hours elapsed, ${heartsLost} hearts lost, calculated health: ${calculatedHealth}`);
+    
     return calculatedHealth;
   };
 
@@ -281,17 +411,16 @@ export function PetsScreen() {
         
         const calculatedHealth = calculateHealthFromTime(currentPet);
         
-        // TEMPORARILY DISABLED FOR TESTING - allow manual health increases to persist
         // Update health based on time calculation
         // If current health is above calculated (from actions), reduce it to calculated
         // If current health is below calculated (shouldn't happen, but handle it), set to calculated
         let newHealth = currentPet.health;
         
-        // TEMPORARILY DISABLED: Don't reduce health if above calculated (manual increases should persist)
-        // if (currentPet.health > calculatedHealth) {
-        //   // Health was increased by actions, but time has passed - reduce it
-        //   newHealth = calculatedHealth;
-        // }
+        // Reduce health if above calculated (time-based decline)
+        if (currentPet.health > calculatedHealth) {
+          // Health was increased by actions, but time has passed - reduce it
+          newHealth = calculatedHealth;
+        }
         
         // Only increase health if it's below calculated (shouldn't happen normally)
         if (currentPet.health < calculatedHealth) {
@@ -299,8 +428,9 @@ export function PetsScreen() {
           newHealth = calculatedHealth;
         }
         
-        // Only update if health changed
+        // Always update health to match calculated value (time-based decline)
         if (newHealth !== currentPet.health) {
+          console.log(`Updating health from ${currentPet.health} to ${newHealth}`);
           const updatedPet = {
             ...currentPet,
             health: newHealth,
@@ -466,21 +596,168 @@ export function PetsScreen() {
     };
   }, [activeAnimation]);
 
-  const handleThemeSelect = (selectedTheme: PetsTheme) => {
-    setPetsTheme(selectedTheme);
+  const handleThemeSelect = (selectedTheme: string) => {
+    // Check if theme is purchased or is a free starter theme
+    if (purchasedThemes.includes(selectedTheme) || ['serene', 'purple-skies', 'orange-kiss'].includes(selectedTheme)) {
+      setPetsTheme(selectedTheme as PetsTheme);
     setShowThemeDropdown(false);
+    }
   };
 
-  const getThemeDisplayName = (theme: PetsTheme): string => {
-    const name = PETS_THEMES[theme].name;
-    // Split "Orange Kiss" and "Purple Skies" into two lines with spacing
-    if (name === 'Orange Kiss') {
-      return 'ORANGE\n\nKISS';
+  const handleThemeEquip = (themeKey: string) => {
+    // Equip the theme (change background)
+    setPetsTheme(themeKey as PetsTheme);
+    setShowThemesModal(false);
+    setTimeout(() => {
+      setShowShopModal(true);
+      shopModalScale.setValue(0.9);
+      Animated.spring(shopModalScale, {
+        toValue: 1,
+        tension: 50,
+        friction: 7,
+        useNativeDriver: true,
+      }).start();
+    }, 100);
+  };
+
+  const handleThemePurchase = async (themeKey: string) => {
+    const theme = ALL_THEMES[themeKey];
+    if (!theme) return;
+
+    // Check if already purchased - don't do anything, equip is handled separately
+    if (purchasedThemes.includes(themeKey)) {
+      return;
     }
-    if (name === 'Purple Skies') {
-      return 'PURPLE\n\nSKIES';
+
+    // Check if user has sufficient coins
+    if (coins < theme.price) {
+      setPurchaseErrorMessage(`You need ${theme.price} coins to purchase this theme!`);
+      setShowPurchaseError(true);
+      setTimeout(() => {
+        setShowPurchaseError(false);
+      }, 3000);
+      return;
     }
-    return name;
+
+    // Deduct coins
+    const newCoins = coins - theme.price;
+    setCoins(newCoins);
+    await saveCoins(newCoins);
+
+    // Add theme to purchased themes
+    const updatedPurchasedThemes = [...purchasedThemes, themeKey];
+    setPurchasedThemes(updatedPurchasedThemes);
+    await savePurchasedThemes(updatedPurchasedThemes);
+
+    // Close themes modal and return to shop category modal
+    setShowThemesModal(false);
+    setTimeout(() => {
+      setShowShopModal(true);
+      shopModalScale.setValue(0.9);
+      Animated.spring(shopModalScale, {
+        toValue: 1,
+        tension: 50,
+        friction: 7,
+        useNativeDriver: true,
+      }).start();
+    }, 100);
+  };
+
+  // Helper function to render a theme item
+  const renderThemeItem = (themeKey: string, imageSource: any, displayName: string, price: number, isExclusive: boolean = false) => {
+    const isPurchased = purchasedThemes.includes(themeKey);
+    const isEquipped = petsTheme === themeKey;
+    return (
+      <View
+        key={themeKey}
+        style={[
+          styles.themeItem,
+          isExclusive && styles.exclusiveThemeItem,
+          isPurchased && styles.themeItemPurchased,
+          isEquipped && styles.themeItemEquipped
+        ]}
+      >
+        <Image
+          source={imageSource}
+          style={styles.themePreview}
+          resizeMode="cover"
+        />
+        <Text style={styles.themeName}>{displayName}</Text>
+        {isPurchased ? (
+          <View style={styles.themePurchasedContainer}>
+            <Text style={styles.themePurchasedText}>PURCHASED</Text>
+            <TouchableOpacity
+              style={[
+                styles.equipButton,
+                isEquipped && styles.equipButtonActive
+              ]}
+              onPress={() => handleThemeEquip(themeKey)}
+              activeOpacity={0.8}
+            >
+              <Text style={[
+                styles.equipButtonText,
+                isEquipped && styles.equipButtonTextActive
+              ]}>
+                {isEquipped ? 'EQUIPPED' : 'EQUIP'}
+              </Text>
+            </TouchableOpacity>
+          </View>
+        ) : (
+          <TouchableOpacity
+            style={styles.themePriceContainer}
+            onPress={() => handleThemePurchase(themeKey)}
+            activeOpacity={0.8}
+          >
+            <Image
+              source={require('../../assets/rewards/coins.png')}
+              style={styles.coinIcon}
+              resizeMode="contain"
+            />
+            <Text style={isExclusive ? styles.exclusiveThemePrice : styles.themePrice}>
+              {price}
+            </Text>
+          </TouchableOpacity>
+        )}
+      </View>
+    );
+  };
+
+  const getThemeDisplayName = (theme: string): string => {
+    const themeData = ALL_THEMES[theme] || PETS_THEMES[theme as PetsTheme];
+    if (!themeData) return theme.toUpperCase();
+    const name = themeData.name;
+    const upperName = name.toUpperCase();
+    
+    // Split longer names into 2 lines
+    const words = upperName.split(' ');
+    
+    // For names with 2 words, split them
+    if (words.length === 2) {
+      return `${words[0]}\n${words[1]}`;
+    }
+    
+    // For names with 3+ words, split after first word or two
+    if (words.length >= 3) {
+      // For "Feels Like 2002" or "Feels Like Christmas", split after "FEELS"
+      if (words[0] === 'FEELS' && words[1] === 'LIKE') {
+        return `${words[0]} ${words[1]}\n${words.slice(2).join(' ')}`;
+      }
+      // For "Oh So Flowery", split after "OH"
+      if (words[0] === 'OH' && words[1] === 'SO') {
+        return `${words[0]} ${words[1]}\n${words.slice(2).join(' ')}`;
+      }
+      // Default: split after first word
+      return `${words[0]}\n${words.slice(1).join(' ')}`;
+    }
+    
+    // For single word names that are long, check if they need splitting
+    // "Therapeutic" is long enough to potentially overflow
+    if (upperName === 'THERAPEUTIC') {
+      return 'THERA\nPEUTIC';
+    }
+    
+    // Single word names stay on one line
+    return upperName;
   };
 
   const calculateStreak = (pet: Pet | null): number => {
@@ -833,7 +1110,7 @@ export function PetsScreen() {
         {/* Screen with GIF */}
         <View style={styles.screen}>
           <Image
-            source={PETS_THEMES[petsTheme].background}
+            source={(ALL_THEMES[petsTheme] || PETS_THEMES[petsTheme] || ALL_THEMES['serene']).background}
             style={styles.backgroundGif}
             resizeMode="cover"
           />
@@ -852,19 +1129,25 @@ export function PetsScreen() {
                   styles.dropdownButton, 
                   { 
                     backgroundColor: 'rgba(0, 0, 0, 0.7)',
-                    borderColor: PETS_THEMES[petsTheme].color
+                    borderColor: (ALL_THEMES[petsTheme] || PETS_THEMES[petsTheme] || ALL_THEMES['serene']).color
                   }
                 ]}
               >
-                <Text style={[styles.dropdownLabel, { color: PETS_THEMES[petsTheme].color }]}>
+                <Text 
+                  style={[styles.dropdownLabel, { color: (ALL_THEMES[petsTheme] || PETS_THEMES[petsTheme] || ALL_THEMES['serene']).color }]}
+                  numberOfLines={2}
+                >
                   {getThemeDisplayName(petsTheme)}
                 </Text>
-                <Text style={[styles.dropdownArrow, { color: PETS_THEMES[petsTheme].color }]}>▼</Text>
+                <Text style={[styles.dropdownArrow, { color: (ALL_THEMES[petsTheme] || PETS_THEMES[petsTheme] || ALL_THEMES['serene']).color }]}>▼</Text>
               </TouchableOpacity>
 
               {showThemeDropdown && (
-                <View style={[styles.dropdownMenu, { backgroundColor: 'rgba(0, 0, 0, 0.85)', borderColor: PETS_THEMES[petsTheme].color }]}>
-                  {(Object.keys(PETS_THEMES) as PetsTheme[]).map((themeKey) => (
+                <View style={[styles.dropdownMenu, { backgroundColor: 'rgba(0, 0, 0, 0.85)', borderColor: (ALL_THEMES[petsTheme] || PETS_THEMES[petsTheme] || ALL_THEMES['serene']).color }]}>
+                  {purchasedThemes.map((themeKey) => {
+                    const themeData = ALL_THEMES[themeKey] || PETS_THEMES[themeKey as PetsTheme];
+                    if (!themeData) return null;
+                    return (
                     <TouchableOpacity
                       key={themeKey}
                       onPress={() => handleThemeSelect(themeKey)}
@@ -876,12 +1159,13 @@ export function PetsScreen() {
                         }
                       ]}
                     >
-                      <View style={[styles.colorIndicator, { backgroundColor: PETS_THEMES[themeKey].color }]} />
-                      <Text style={[styles.dropdownOptionText, { color: PETS_THEMES[themeKey].color }]}>
-                        {PETS_THEMES[themeKey].name}
+                        <View style={[styles.colorIndicator, { backgroundColor: themeData.color }]} />
+                        <Text style={[styles.dropdownOptionText, { color: themeData.color }]}>
+                          {themeData.name}
                       </Text>
                     </TouchableOpacity>
-                  ))}
+                    );
+                  })}
                 </View>
               )}
             </View>
@@ -898,18 +1182,18 @@ export function PetsScreen() {
                   styles.dropdownButton, 
                   { 
                     backgroundColor: 'rgba(0, 0, 0, 0.7)',
-                    borderColor: PETS_THEMES[petsTheme].color
+                    borderColor: (ALL_THEMES[petsTheme] || PETS_THEMES[petsTheme] || ALL_THEMES['serene']).color
                   }
                 ]}
               >
-                <Text style={[styles.dropdownLabel, { color: PETS_THEMES[petsTheme].color }]}>
+                <Text style={[styles.dropdownLabel, { color: (ALL_THEMES[petsTheme] || PETS_THEMES[petsTheme] || ALL_THEMES['serene']).color }]}>
                   {pet ? `🐱 ${pet.type.toUpperCase()}` : 'None'}
                 </Text>
-                <Text style={[styles.dropdownArrow, { color: PETS_THEMES[petsTheme].color }]}>▼</Text>
+                <Text style={[styles.dropdownArrow, { color: (ALL_THEMES[petsTheme] || PETS_THEMES[petsTheme] || ALL_THEMES['serene']).color }]}>▼</Text>
               </TouchableOpacity>
 
               {showPetDropdown && (
-                <View style={[styles.dropdownMenu, { backgroundColor: 'rgba(0, 0, 0, 0.85)', borderColor: PETS_THEMES[petsTheme].color }]}>
+                <View style={[styles.dropdownMenu, { backgroundColor: 'rgba(0, 0, 0, 0.85)', borderColor: (ALL_THEMES[petsTheme] || PETS_THEMES[petsTheme] || ALL_THEMES['serene']).color }]}>
                   <TouchableOpacity
                     onPress={() => handlePetSelect('none')}
                     style={[
@@ -920,7 +1204,7 @@ export function PetsScreen() {
                       }
                     ]}
                   >
-                    <Text style={[styles.dropdownOptionText, { color: PETS_THEMES[petsTheme].color }]}>None</Text>
+                    <Text style={[styles.dropdownOptionText, { color: (ALL_THEMES[petsTheme] || PETS_THEMES[petsTheme] || ALL_THEMES['serene']).color }]}>None</Text>
                   </TouchableOpacity>
                   <TouchableOpacity
                     onPress={() => handlePetSelect('cat')}
@@ -932,7 +1216,7 @@ export function PetsScreen() {
                       }
                     ]}
                   >
-                    <Text style={[styles.dropdownOptionText, { color: PETS_THEMES[petsTheme].color }]}>🐱 Cat</Text>
+                    <Text style={[styles.dropdownOptionText, { color: (ALL_THEMES[petsTheme] || PETS_THEMES[petsTheme] || ALL_THEMES['serene']).color }]}>🐱 Cat</Text>
                   </TouchableOpacity>
                   <TouchableOpacity
                     disabled
@@ -996,18 +1280,18 @@ export function PetsScreen() {
                       styles.dropdownButton, 
                       { 
                         backgroundColor: 'rgba(0, 0, 0, 0.7)',
-                        borderColor: PETS_THEMES[petsTheme].color
+                        borderColor: (ALL_THEMES[petsTheme] || PETS_THEMES[petsTheme] || ALL_THEMES['serene']).color
                       }
                     ]}
                   >
-                    <Text style={[styles.dropdownLabel, { color: PETS_THEMES[petsTheme].color }]}>
+                    <Text style={[styles.dropdownLabel, { color: (ALL_THEMES[petsTheme] || PETS_THEMES[petsTheme] || ALL_THEMES['serene']).color }]}>
                       ACTIONS
               </Text>
-                    <Text style={[styles.dropdownArrow, { color: PETS_THEMES[petsTheme].color }]}>▼</Text>
+                    <Text style={[styles.dropdownArrow, { color: (ALL_THEMES[petsTheme] || PETS_THEMES[petsTheme] || ALL_THEMES['serene']).color }]}>▼</Text>
                   </TouchableOpacity>
 
                   {showActionsDropdown && (
-                    <View style={[styles.dropdownMenu, { backgroundColor: 'rgba(0, 0, 0, 0.85)', borderColor: PETS_THEMES[petsTheme].color }]}>
+                    <View style={[styles.dropdownMenu, styles.actionsDropdownMenu, { backgroundColor: 'rgba(0, 0, 0, 0.85)', borderColor: (ALL_THEMES[petsTheme] || PETS_THEMES[petsTheme] || ALL_THEMES['serene']).color }]}>
                 <TouchableOpacity
                         onPress={() => {
                           handleFeed();
@@ -1020,7 +1304,7 @@ export function PetsScreen() {
                           }
                         ]}
                       >
-                        <Text style={[styles.dropdownOptionText, { color: PETS_THEMES[petsTheme].color }]}>
+                        <Text style={[styles.dropdownOptionText, { color: (ALL_THEMES[petsTheme] || PETS_THEMES[petsTheme] || ALL_THEMES['serene']).color }]}>
                           FEED
                         </Text>
                 </TouchableOpacity>
@@ -1036,7 +1320,7 @@ export function PetsScreen() {
                           }
                         ]}
                       >
-                        <Text style={[styles.dropdownOptionText, { color: PETS_THEMES[petsTheme].color }]}>
+                        <Text style={[styles.dropdownOptionText, { color: (ALL_THEMES[petsTheme] || PETS_THEMES[petsTheme] || ALL_THEMES['serene']).color }]}>
                           PET
                         </Text>
                       </TouchableOpacity>
@@ -1049,7 +1333,7 @@ export function PetsScreen() {
                           styles.dropdownOption
                         ]}
                       >
-                        <Text style={[styles.dropdownOptionText, { color: PETS_THEMES[petsTheme].color }]}>
+                        <Text style={[styles.dropdownOptionText, { color: (ALL_THEMES[petsTheme] || PETS_THEMES[petsTheme] || ALL_THEMES['serene']).color }]}>
                           PLAY
                         </Text>
                 </TouchableOpacity>
@@ -1113,18 +1397,18 @@ export function PetsScreen() {
           <View style={[
             styles.nameModal, 
             { 
-              backgroundColor: `${PETS_THEMES[petsTheme].color}33`,
-              borderColor: PETS_THEMES[petsTheme].color 
+              backgroundColor: `${(ALL_THEMES[petsTheme] || PETS_THEMES[petsTheme] || ALL_THEMES['serene']).color}33`,
+              borderColor: (ALL_THEMES[petsTheme] || PETS_THEMES[petsTheme] || ALL_THEMES['serene']).color 
                 },
                 showKeyboard && styles.nameModalWithKeyboard
           ]}>
-            <Text style={[styles.modalTitle, { color: PETS_THEMES[petsTheme].color }]}>NAME YOUR PET</Text>
+            <Text style={[styles.modalTitle, { color: (ALL_THEMES[petsTheme] || PETS_THEMES[petsTheme] || ALL_THEMES['serene']).color }]}>NAME YOUR PET</Text>
             <TouchableOpacity
               style={[
                 styles.nameInput, 
                 { 
                   backgroundColor: 'rgba(0, 0, 0, 0.5)',
-                  borderColor: PETS_THEMES[petsTheme].color 
+                  borderColor: (ALL_THEMES[petsTheme] || PETS_THEMES[petsTheme] || ALL_THEMES['serene']).color 
                 }
               ]}
               onPress={() => setShowKeyboard(true)}
@@ -1144,11 +1428,11 @@ export function PetsScreen() {
                   styles.modalButton, 
                   { 
                     backgroundColor: 'rgba(0, 0, 0, 0.5)',
-                    borderColor: PETS_THEMES[petsTheme].color 
+                    borderColor: (ALL_THEMES[petsTheme] || PETS_THEMES[petsTheme] || ALL_THEMES['serene']).color 
                   }
                 ]}
               >
-                <Text style={[styles.modalButtonText, { color: PETS_THEMES[petsTheme].color }]}>CANCEL</Text>
+                <Text style={[styles.modalButtonText, { color: (ALL_THEMES[petsTheme] || PETS_THEMES[petsTheme] || ALL_THEMES['serene']).color }]}>CANCEL</Text>
               </TouchableOpacity>
               <TouchableOpacity
                 onPress={handleNameSubmit}
@@ -1156,8 +1440,8 @@ export function PetsScreen() {
                 style={[
                   styles.modalButton, 
                   { 
-                    backgroundColor: PETS_THEMES[petsTheme].color,
-                    borderColor: PETS_THEMES[petsTheme].color 
+                    backgroundColor: (ALL_THEMES[petsTheme] || PETS_THEMES[petsTheme] || ALL_THEMES['serene']).color,
+                    borderColor: (ALL_THEMES[petsTheme] || PETS_THEMES[petsTheme] || ALL_THEMES['serene']).color 
                   }, 
                   !petName.trim() && { opacity: 0.5 }
                 ]}
@@ -1175,18 +1459,18 @@ export function PetsScreen() {
               <View style={[
                 styles.nameModal, 
                 { 
-                  backgroundColor: `${PETS_THEMES[petsTheme].color}33`,
-                  borderColor: PETS_THEMES[petsTheme].color 
+                  backgroundColor: `${(ALL_THEMES[petsTheme] || PETS_THEMES[petsTheme] || ALL_THEMES['serene']).color}33`,
+                  borderColor: (ALL_THEMES[petsTheme] || PETS_THEMES[petsTheme] || ALL_THEMES['serene']).color 
                 },
                 showKeyboard && styles.nameModalWithKeyboard
               ]}>
-                <Text style={[styles.modalTitle, { color: PETS_THEMES[petsTheme].color }]}>RENAME YOUR PET</Text>
+                <Text style={[styles.modalTitle, { color: (ALL_THEMES[petsTheme] || PETS_THEMES[petsTheme] || ALL_THEMES['serene']).color }]}>RENAME YOUR PET</Text>
                 <TouchableOpacity
                   style={[
                     styles.nameInput, 
                     { 
                       backgroundColor: 'rgba(0, 0, 0, 0.5)',
-                      borderColor: PETS_THEMES[petsTheme].color 
+                      borderColor: (ALL_THEMES[petsTheme] || PETS_THEMES[petsTheme] || ALL_THEMES['serene']).color 
                     }
                   ]}
                   onPress={() => setShowKeyboard(true)}
@@ -1206,11 +1490,11 @@ export function PetsScreen() {
                       styles.modalButton, 
                       { 
                         backgroundColor: 'rgba(0, 0, 0, 0.5)',
-                        borderColor: PETS_THEMES[petsTheme].color 
+                        borderColor: (ALL_THEMES[petsTheme] || PETS_THEMES[petsTheme] || ALL_THEMES['serene']).color 
                       }
                     ]}
                   >
-                    <Text style={[styles.modalButtonText, { color: PETS_THEMES[petsTheme].color }]}>CANCEL</Text>
+                    <Text style={[styles.modalButtonText, { color: (ALL_THEMES[petsTheme] || PETS_THEMES[petsTheme] || ALL_THEMES['serene']).color }]}>CANCEL</Text>
                   </TouchableOpacity>
                   <TouchableOpacity
                     onPress={handleRenameSubmit}
@@ -1218,8 +1502,8 @@ export function PetsScreen() {
                     style={[
                       styles.modalButton, 
                       { 
-                        backgroundColor: PETS_THEMES[petsTheme].color,
-                        borderColor: PETS_THEMES[petsTheme].color 
+                        backgroundColor: (ALL_THEMES[petsTheme] || PETS_THEMES[petsTheme] || ALL_THEMES['serene']).color,
+                        borderColor: (ALL_THEMES[petsTheme] || PETS_THEMES[petsTheme] || ALL_THEMES['serene']).color 
                       }, 
                       !renameInput.trim() && { opacity: 0.5 }
                     ]}
@@ -1400,7 +1684,7 @@ export function PetsScreen() {
           {/* Full Health Alert Popup */}
           {showFullHealthAlert && (
             <View style={styles.reviveOverlay}>
-              <View style={[styles.revivePopup, { backgroundColor: `${PETS_THEMES[petsTheme].color}DD`, borderColor: PETS_THEMES[petsTheme].color }]}>
+              <View style={[styles.revivePopup, { backgroundColor: `${(ALL_THEMES[petsTheme] || PETS_THEMES[petsTheme] || ALL_THEMES['serene']).color}DD`, borderColor: (ALL_THEMES[petsTheme] || PETS_THEMES[petsTheme] || ALL_THEMES['serene']).color }]}>
                 <TouchableOpacity
                   onPress={() => setShowFullHealthAlert(false)}
                   style={styles.reviveCloseButton}
@@ -1411,7 +1695,7 @@ export function PetsScreen() {
                 <Text style={[styles.reviveText, { color: '#FFFFFF' }]}>LIFE BAR IS FULL!</Text>
                 <TouchableOpacity
                   onPress={() => setShowFullHealthAlert(false)}
-                  style={[styles.reviveButton, { backgroundColor: PETS_THEMES[petsTheme].color, borderColor: '#FFFFFF' }]}
+                  style={[styles.reviveButton, { backgroundColor: (ALL_THEMES[petsTheme] || PETS_THEMES[petsTheme] || ALL_THEMES['serene']).color, borderColor: '#FFFFFF' }]}
                   activeOpacity={0.8}
                 >
                   <Text style={[styles.reviveButtonText, { color: '#000000' }]}>OK</Text>
@@ -1423,7 +1707,7 @@ export function PetsScreen() {
           {/* Coins Popup - Shows coins count */}
           {showCoinsPopup && (
             <View style={styles.coinsOverlay}>
-              <View style={[styles.coinsPopup, { backgroundColor: `${PETS_THEMES[petsTheme].color}DD`, borderColor: PETS_THEMES[petsTheme].color }]}>
+              <View style={[styles.coinsPopup, { backgroundColor: `${(ALL_THEMES[petsTheme] || PETS_THEMES[petsTheme] || ALL_THEMES['serene']).color}DD`, borderColor: (ALL_THEMES[petsTheme] || PETS_THEMES[petsTheme] || ALL_THEMES['serene']).color }]}>
                 <Text style={[styles.coinsText, { color: '#FFFFFF' }]}>
                   {coins} : YOU HAVE {coins} COINS!
                 </Text>
@@ -1432,7 +1716,7 @@ export function PetsScreen() {
                     setShowCoinsPopup(false);
                     startGame();
                   }}
-                  style={[styles.playToWinButton, { borderColor: PETS_THEMES[petsTheme].color }]}
+                  style={[styles.playToWinButton, { borderColor: (ALL_THEMES[petsTheme] || PETS_THEMES[petsTheme] || ALL_THEMES['serene']).color }]}
                   activeOpacity={0.8}
                 >
                   <Text style={[styles.playToWinButtonText, { color: '#FFFFFF' }]}>
@@ -1446,7 +1730,7 @@ export function PetsScreen() {
           {/* Streak Popup - Shows streak and share option */}
           {showStreakPopup && pet && (
             <View style={styles.coinsOverlay}>
-              <View style={[styles.coinsPopup, { backgroundColor: `${PETS_THEMES[petsTheme].color}DD`, borderColor: PETS_THEMES[petsTheme].color }]}>
+              <View style={[styles.coinsPopup, { backgroundColor: `${(ALL_THEMES[petsTheme] || PETS_THEMES[petsTheme] || ALL_THEMES['serene']).color}DD`, borderColor: (ALL_THEMES[petsTheme] || PETS_THEMES[petsTheme] || ALL_THEMES['serene']).color }]}>
                 <TouchableOpacity
                   onPress={() => setShowStreakPopup(false)}
                   style={styles.reviveCloseButton}
@@ -1470,7 +1754,7 @@ export function PetsScreen() {
                     handleShareStreak();
                     setShowStreakPopup(false);
                   }}
-                  style={[styles.playToWinButton, { borderColor: PETS_THEMES[petsTheme].color, backgroundColor: PETS_THEMES[petsTheme].color }]}
+                  style={[styles.playToWinButton, { borderColor: (ALL_THEMES[petsTheme] || PETS_THEMES[petsTheme] || ALL_THEMES['serene']).color, backgroundColor: (ALL_THEMES[petsTheme] || PETS_THEMES[petsTheme] || ALL_THEMES['serene']).color }]}
                   activeOpacity={0.8}
                 >
                   <Text style={[styles.playToWinButtonText, { color: '#FFFFFF' }]}>
@@ -1489,7 +1773,7 @@ export function PetsScreen() {
               options={{ format: 'png', quality: 1.0 }}
             >
               <ImageBackground
-                source={PETS_THEMES[petsTheme].background}
+                source={(ALL_THEMES[petsTheme] || PETS_THEMES[petsTheme] || ALL_THEMES['serene']).background}
                 style={styles.shareableBackground}
                 resizeMode="cover"
               >
@@ -1758,7 +2042,19 @@ export function PetsScreen() {
                 ]}
               >
                 <TouchableOpacity
-                  onPress={() => setShowThemesModal(false)}
+                  onPress={() => {
+                    setShowThemesModal(false);
+                    setTimeout(() => {
+                      setShowShopModal(true);
+                      shopModalScale.setValue(0.9);
+                      Animated.spring(shopModalScale, {
+                        toValue: 1,
+                        tension: 50,
+                        friction: 7,
+                        useNativeDriver: true,
+                      }).start();
+                    }, 100);
+                  }}
                   style={styles.shopModalCloseButton}
                   activeOpacity={0.8}
                 >
@@ -1770,187 +2066,37 @@ export function PetsScreen() {
                   contentContainerStyle={styles.themesScrollContent}
                   showsVerticalScrollIndicator={true}
                 >
-                  {/* Anime */}
-                  <TouchableOpacity style={styles.themeItem}>
-                    <Image
-                      source={require('../../assets/pets/backgrounds/anime.gif')}
-                      style={styles.themePreview}
-                      resizeMode="cover"
-                    />
-                    <Text style={styles.themeName}>ANIME</Text>
-                  </TouchableOpacity>
+                  {/* Regular Themes - 15 coins each */}
+                  {renderThemeItem('cherryblossom', require('../../assets/pets/backgrounds/cherryblossom.jpg'), 'CHERRY BLOSSOM', 15)}
+                  {renderThemeItem('feelslike2002', require('../../assets/pets/backgrounds/feelslike2002.jpg'), 'FEELS LIKE 2002', 15)}
+                  {renderThemeItem('feelslikechristmas', require('../../assets/pets/backgrounds/feelslikechristmas.jpg'), 'FEELS LIKE CHRISTMAS', 15)}
+                  {renderThemeItem('fishpond', require('../../assets/pets/backgrounds/fishpond.jpg'), 'FISH POND', 15)}
+                  {renderThemeItem('glowy', require('../../assets/pets/backgrounds/glowy.jpg'), 'GLOWY', 15)}
+                  {renderThemeItem('magical', require('../../assets/pets/backgrounds/magical.jpg'), 'MAGICAL', 15)}
+                  {renderThemeItem('minecraft', require('../../assets/pets/backgrounds/minecraft.jpg'), 'MINECRAFT', 15)}
+                  {renderThemeItem('ohsoflowery', require('../../assets/pets/backgrounds/ohsoflowery.jpg'), 'OH SO FLOWERY', 15)}
+                  {renderThemeItem('peace', require('../../assets/pets/backgrounds/peace.jpg'), 'PEACE', 15)}
+                  {renderThemeItem('secretgarden', require('../../assets/pets/backgrounds/secretgarden.jpg'), 'SECRET GARDEN', 15)}
+                  {renderThemeItem('snowynight', require('../../assets/pets/backgrounds/snowynight.jpg'), 'SNOWY NIGHT', 15)}
+                  {renderThemeItem('therapeutic', require('../../assets/pets/backgrounds/therapeutic.jpg'), 'THERAPEUTIC', 15)}
+                  {renderThemeItem('waterfall', require('../../assets/pets/backgrounds/waterfall.jpg'), 'WATERFALL', 15)}
 
-                  {/* Autumn */}
-                  <TouchableOpacity style={styles.themeItem}>
-                    <Image
-                      source={require('../../assets/pets/backgrounds/autumn.gif')}
-                      style={styles.themePreview}
-                      resizeMode="cover"
-                    />
-                    <Text style={styles.themeName}>AUTUMN</Text>
-                  </TouchableOpacity>
-
-                  {/* Cherry Blossom */}
-                  <TouchableOpacity style={styles.themeItem}>
-                    <Image
-                      source={require('../../assets/pets/backgrounds/cherryblossom.jpg')}
-                      style={styles.themePreview}
-                      resizeMode="cover"
-                    />
-                    <Text style={styles.themeName}>CHERRYBLOSSOM</Text>
-                  </TouchableOpacity>
-
-                  {/* Feels Like 2002 */}
-                  <TouchableOpacity style={styles.themeItem}>
-                    <Image
-                      source={require('../../assets/pets/backgrounds/feelslike2002.jpg')}
-                      style={styles.themePreview}
-                      resizeMode="cover"
-                    />
-                    <Text style={styles.themeName}>FEELSLIKE2002</Text>
-                  </TouchableOpacity>
-
-                  {/* Feels Like Christmas */}
-                  <TouchableOpacity style={styles.themeItem}>
-                    <Image
-                      source={require('../../assets/pets/backgrounds/feelslikechristmas.jpg')}
-                      style={styles.themePreview}
-                      resizeMode="cover"
-                    />
-                    <Text style={styles.themeName}>FEELSLIKECHRISTMAS</Text>
-                  </TouchableOpacity>
-
-                  {/* Fish Pond */}
-                  <TouchableOpacity style={styles.themeItem}>
-                    <Image
-                      source={require('../../assets/pets/backgrounds/fishpond.jpg')}
-                      style={styles.themePreview}
-                      resizeMode="cover"
-                    />
-                    <Text style={styles.themeName}>FISHPOND</Text>
-                  </TouchableOpacity>
-
-                  {/* Glowy */}
-                  <TouchableOpacity style={styles.themeItem}>
-                    <Image
-                      source={require('../../assets/pets/backgrounds/glowy.jpg')}
-                      style={styles.themePreview}
-                      resizeMode="cover"
-                    />
-                    <Text style={styles.themeName}>GLOWY</Text>
-                  </TouchableOpacity>
-
-                  {/* Infinite */}
-                  <TouchableOpacity style={styles.themeItem}>
-                    <Image
-                      source={require('../../assets/pets/backgrounds/infinite.gif')}
-                      style={styles.themePreview}
-                      resizeMode="cover"
-                    />
-                    <Text style={styles.themeName}>INFINITE</Text>
-                  </TouchableOpacity>
-
-                  {/* Magical */}
-                  <TouchableOpacity style={styles.themeItem}>
-                    <Image
-                      source={require('../../assets/pets/backgrounds/magical.jpg')}
-                      style={styles.themePreview}
-                      resizeMode="cover"
-                    />
-                    <Text style={styles.themeName}>MAGICAL</Text>
-                  </TouchableOpacity>
-
-                  {/* Minecraft */}
-                  <TouchableOpacity style={styles.themeItem}>
-                    <Image
-                      source={require('../../assets/pets/backgrounds/minecraft.jpg')}
-                      style={styles.themePreview}
-                      resizeMode="cover"
-                    />
-                    <Text style={styles.themeName}>MINECRAFT</Text>
-                  </TouchableOpacity>
-
-                  {/* Moonlight */}
-                  <TouchableOpacity style={styles.themeItem}>
-                    <Image
-                      source={require('../../assets/pets/backgrounds/moonlight.gif')}
-                      style={styles.themePreview}
-                      resizeMode="cover"
-                    />
-                    <Text style={styles.themeName}>MOONLIGHT</Text>
-                  </TouchableOpacity>
-
-                  {/* Oh So Flowery */}
-                  <TouchableOpacity style={styles.themeItem}>
-                    <Image
-                      source={require('../../assets/pets/backgrounds/ohsoflowery.jpg')}
-                      style={styles.themePreview}
-                      resizeMode="cover"
-                    />
-                    <Text style={styles.themeName}>OHSOFLOWERY</Text>
-                  </TouchableOpacity>
-
-                  {/* Peace */}
-                  <TouchableOpacity style={styles.themeItem}>
-                    <Image
-                      source={require('../../assets/pets/backgrounds/peace.jpg')}
-                      style={styles.themePreview}
-                      resizeMode="cover"
-                    />
-                    <Text style={styles.themeName}>PEACE</Text>
-                  </TouchableOpacity>
-
-                  {/* Secret Garden */}
-                  <TouchableOpacity style={styles.themeItem}>
-                    <Image
-                      source={require('../../assets/pets/backgrounds/secretgarden.jpg')}
-                      style={styles.themePreview}
-                      resizeMode="cover"
-                    />
-                    <Text style={styles.themeName}>SECRETGARDEN</Text>
-                  </TouchableOpacity>
-
-                  {/* Shop Interior */}
-                  <TouchableOpacity style={styles.themeItem}>
-                    <Image
-                      source={require('../../assets/pets/backgrounds/shopinterior.jpg')}
-                      style={styles.themePreview}
-                      resizeMode="cover"
-                    />
-                    <Text style={styles.themeName}>SHOPINTERIOR</Text>
-                  </TouchableOpacity>
-
-                  {/* Snowy Night */}
-                  <TouchableOpacity style={styles.themeItem}>
-                    <Image
-                      source={require('../../assets/pets/backgrounds/snowynight.jpg')}
-                      style={styles.themePreview}
-                      resizeMode="cover"
-                    />
-                    <Text style={styles.themeName}>SNOWYNIGHT</Text>
-                  </TouchableOpacity>
-
-                  {/* Therapeutic */}
-                  <TouchableOpacity style={styles.themeItem}>
-                    <Image
-                      source={require('../../assets/pets/backgrounds/therapeutic.jpg')}
-                      style={styles.themePreview}
-                      resizeMode="cover"
-                    />
-                    <Text style={styles.themeName}>THERAPEUTIC</Text>
-                  </TouchableOpacity>
-
-                  {/* Waterfall */}
-                  <TouchableOpacity style={styles.themeItem}>
-                    <Image
-                      source={require('../../assets/pets/backgrounds/waterfall.jpg')}
-                      style={styles.themePreview}
-                      resizeMode="cover"
-                    />
-                    <Text style={styles.themeName}>WATERFALL</Text>
-                  </TouchableOpacity>
-                        </ScrollView>
+                  {/* Exclusive Themes - 30 coins each (GIFs at bottom) */}
+                  {renderThemeItem('anime', require('../../assets/pets/backgrounds/anime.gif'), 'ANIME', 30, true)}
+                  {renderThemeItem('autumn', require('../../assets/pets/backgrounds/autumn.gif'), 'AUTUMN', 30, true)}
+                  {renderThemeItem('infinite', require('../../assets/pets/backgrounds/infinite.gif'), 'INFINITE', 30, true)}
+                  {renderThemeItem('moonlight', require('../../assets/pets/backgrounds/moonlight.gif'), 'MOONLIGHT', 30, true)}
+                </ScrollView>
               </Animated.View>
+            </View>
+          )}
+
+          {/* Purchase Error Popup */}
+          {showPurchaseError && (
+            <View style={styles.purchaseErrorOverlay}>
+              <View style={styles.purchaseErrorPopup}>
+                <Text style={styles.purchaseErrorText}>{purchaseErrorMessage}</Text>
+              </View>
             </View>
           )}
 
@@ -1961,8 +2107,8 @@ export function PetsScreen() {
                 style={[
                   styles.tryAgainPopup,
                   {
-                    backgroundColor: `${PETS_THEMES[petsTheme].color}DD`,
-                    borderColor: PETS_THEMES[petsTheme].color,
+                    backgroundColor: `${(ALL_THEMES[petsTheme] || PETS_THEMES[petsTheme] || ALL_THEMES['serene']).color}DD`,
+                    borderColor: (ALL_THEMES[petsTheme] || PETS_THEMES[petsTheme] || ALL_THEMES['serene']).color,
                   },
                 ]}
               >
@@ -1997,7 +2143,7 @@ export function PetsScreen() {
                 >
                   <Text style={styles.gameCloseButtonText}>✕</Text>
                 </TouchableOpacity>
-                <Text style={[styles.gameTitle, { color: PETS_THEMES[petsTheme].color }]}>
+                <Text style={[styles.gameTitle, { color: (ALL_THEMES[petsTheme] || PETS_THEMES[petsTheme] || ALL_THEMES['serene']).color }]}>
                   TAP THE FRUITS!
                 </Text>
                 <Text style={[styles.gameSubtitle, { color: '#FFFFFF' }]}>
@@ -2099,32 +2245,50 @@ const styles = StyleSheet.create({
   },
   dropdownWrapper: {
     maxWidth: 160,
+    flexShrink: 1,
+    minWidth: 0,
+    position: 'relative',
+    zIndex: 1001,
   },
   dropdownButton: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: 10,
-    paddingVertical: 8,
+    paddingHorizontal: 8,
+    paddingVertical: 6,
     borderWidth: 2,
     borderRadius: 4,
-    gap: 6,
+    gap: 4,
+    flexShrink: 1,
+    minWidth: 0,
   },
   dropdownLabel: {
     fontFamily: 'PressStart2P_400Regular',
     fontSize: 7,
     textAlign: 'center',
     flexShrink: 1,
-    lineHeight: 10,
+    lineHeight: 9,
   },
   dropdownArrow: {
     fontFamily: 'PressStart2P_400Regular',
     fontSize: 6,
   },
   dropdownMenu: {
+    position: 'absolute',
+    top: '100%',
+    left: 0,
     marginTop: 4,
     borderWidth: 2,
     borderRadius: 4,
     overflow: 'hidden',
+    minWidth: 180,
+    maxWidth: 200,
+    zIndex: 1002,
+  },
+  actionsDropdownMenu: {
+    right: 0,
+    left: 'auto',
+    minWidth: 120,
+    maxWidth: 140,
   },
   dropdownOption: {
     flexDirection: 'row',
@@ -2820,6 +2984,98 @@ const styles = StyleSheet.create({
   themeName: {
     fontFamily: 'PressStart2P_400Regular',
     fontSize: 7,
+    marginBottom: 4,
+  },
+  themePriceContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginTop: 2,
+  },
+  coinIcon: {
+    width: 16,
+    height: 16,
+    marginRight: 4,
+  },
+  themePrice: {
+    fontFamily: 'PressStart2P_400Regular',
+    fontSize: 8,
+    color: '#5C4033',
+  },
+  exclusiveThemeItem: {
+    borderColor: '#D4AF37',
+    borderWidth: 4,
+  },
+  exclusiveThemePrice: {
+    fontFamily: 'PressStart2P_400Regular',
+    fontSize: 8,
+    color: '#D4AF37',
+    textAlign: 'center',
+  },
+  themeItemPurchased: {
+    opacity: 0.8,
+    borderColor: '#4CAF50',
+  },
+  themeItemEquipped: {
+    borderColor: '#2196F3',
+    borderWidth: 4,
+  },
+  themePurchasedContainer: {
+    alignItems: 'center',
+    marginTop: 4,
+  },
+  themePurchasedText: {
+    fontFamily: 'PressStart2P_400Regular',
+    fontSize: 7,
+    color: '#4CAF50',
+    marginBottom: 6,
+  },
+  equipButton: {
+    backgroundColor: 'rgba(139, 69, 19, 0.8)',
+    borderWidth: 2,
+    borderColor: '#8B4513',
+    borderRadius: 4,
+    paddingVertical: 4,
+    paddingHorizontal: 8,
+    minWidth: 60,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  equipButtonActive: {
+    backgroundColor: '#2196F3',
+    borderColor: '#1976D2',
+  },
+  equipButtonText: {
+    fontFamily: 'PressStart2P_400Regular',
+    fontSize: 7,
+    color: '#FFFFFF',
+  },
+  equipButtonTextActive: {
+    color: '#FFFFFF',
+  },
+  purchaseErrorOverlay: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: 'rgba(0, 0, 0, 0.7)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    zIndex: 3000,
+  },
+  purchaseErrorPopup: {
+    backgroundColor: 'rgba(255, 229, 180, 0.95)',
+    borderWidth: 4,
+    borderColor: '#8B4513',
+    borderRadius: 12,
+    padding: 20,
+    maxWidth: '80%',
+    alignItems: 'center',
+  },
+  purchaseErrorText: {
+    fontFamily: 'PressStart2P_400Regular',
+    fontSize: 10,
     color: '#5C4033',
     textAlign: 'center',
   },
