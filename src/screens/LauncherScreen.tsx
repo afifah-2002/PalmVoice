@@ -215,6 +215,11 @@ export default function LauncherScreen() {
       return 0;
     }
     
+    // If pet is dead, streak is 0
+    if (pet.health === 0) {
+      return 0;
+    }
+    
     // Get midnight of today
     const today = new Date();
     today.setHours(0, 0, 0, 0);

@@ -11,7 +11,7 @@ import { loadCoins, loadPet, loadPetsTheme, loadPurchasedThemes, loadTasks, save
 import { Task } from '../types/Task';
 
 type PetsTheme = 'serene' | 'purple-skies' | 'orange-kiss' | 'cherryblossom' | 'feelslike2002' | 'feelslikechristmas' | 'fishpond' | 'glowy' | 'magical' | 'minecraft' | 'ohsoflowery' | 'peace' | 'secretgarden' | 'snowynight' | 'therapeutic' | 'waterfall' | 'anime' | 'autumn' | 'infinite' | 'moonlight';
-type PetType = 'none' | 'cat' | 'panda' | 'penguin';
+type PetType = 'none' | 'cat' | 'puppy' | 'panda' | 'penguin';
 type PetStatus = 'happy' | 'hungry' | 'sad' | 'dead' | 'sleeping';
 
 interface Pet {
@@ -199,6 +199,7 @@ export function PetsScreen() {
   const [showNameModal, setShowNameModal] = useState(false);
   const [petName, setPetName] = useState('');
   const [showKeyboard, setShowKeyboard] = useState(false);
+  const [selectedPetType, setSelectedPetType] = useState<PetType>('cat');
   const [showFullHealthAlert, setShowFullHealthAlert] = useState(false);
   const [showRenameModal, setShowRenameModal] = useState(false);
   const [renameInput, setRenameInput] = useState('');
@@ -301,6 +302,36 @@ export function PetsScreen() {
     require('../../assets/pets/cat/sadcat2.png'),
   ];
 
+  // Puppy sit animation frames
+  const puppySitFrames = [
+    require('../../assets/pets/puppy/puppysit1.png'),
+    require('../../assets/pets/puppy/puppysit2.png'),
+  ];
+
+  // Puppy eat animation frames
+  const puppyEatFrames = [
+    require('../../assets/pets/puppy/puppyeat1.png'),
+    require('../../assets/pets/puppy/puppyeat3.png'),
+  ];
+
+  // Puppy cry animation frames (for when health is 1)
+  const puppyCryFrames = [
+    require('../../assets/pets/puppy/puppycry1.png'),
+    require('../../assets/pets/puppy/puppycry2.png'),
+  ];
+
+  // Puppy pet animation frames (happy)
+  const happyPuppyFrames = [
+    require('../../assets/pets/puppy/puppypet1.png'),
+    require('../../assets/pets/puppy/puppypet2.png'),
+    require('../../assets/pets/puppy/puppypet3.png'),
+  ];
+
+  // Puppy play animation frames
+  const puppyPlayFrames = [
+    require('../../assets/pets/puppy/puppyplay1.png'),
+  ];
+
   // Load saved pets theme and pet data on mount
   useEffect(() => {
     loadPetsTheme().then((savedTheme) => {
@@ -320,7 +351,7 @@ export function PetsScreen() {
             createdAt: midnightTimestamp,
           };
           setPet(updatedPet);
-          savePet(updatedPet);
+          savePet(updatedPet, updatedPet.type);
         } else {
           setPet(savedPet as Pet);
         }
@@ -435,7 +466,7 @@ export function PetsScreen() {
             ...currentPet,
             health: newHealth,
           };
-          savePet(updatedPet); // Save to storage
+          savePet(updatedPet, updatedPet.type); // Save to storage
           return updatedPet;
         }
         
@@ -498,7 +529,11 @@ export function PetsScreen() {
     }
 
     const interval = setInterval(() => {
-      setCurrentCatFrame((prev) => (prev + 1) % catSitFrames.length);
+      if (pet?.type === 'puppy') {
+        setCurrentCatFrame((prev) => (prev + 1) % puppySitFrames.length);
+      } else {
+        setCurrentCatFrame((prev) => (prev + 1) % catSitFrames.length);
+      }
     }, 1000); // 1 second interval
 
     return () => clearInterval(interval);
@@ -570,15 +605,28 @@ export function PetsScreen() {
     let frames: any[];
     let duration: number;
     
-    if (activeAnimation === 'feed') {
-      frames = catBowlFrames;
-      duration = 9000; // 9 seconds
-    } else if (activeAnimation === 'pet') {
-      frames = happyCatFrames;
-      duration = 12000; // 12 seconds
+    if (pet?.type === 'puppy') {
+      if (activeAnimation === 'feed') {
+        frames = puppyEatFrames;
+        duration = 9000; // 9 seconds
+      } else if (activeAnimation === 'pet') {
+        frames = happyPuppyFrames;
+        duration = 12000; // 12 seconds
+      } else {
+        frames = puppyPlayFrames;
+        duration = 9000; // 9 seconds
+      }
     } else {
-      frames = playCatFrames;
-      duration = 9000; // 9 seconds
+      if (activeAnimation === 'feed') {
+        frames = catBowlFrames;
+        duration = 9000; // 9 seconds
+      } else if (activeAnimation === 'pet') {
+        frames = happyCatFrames;
+        duration = 12000; // 12 seconds
+      } else {
+        frames = playCatFrames;
+        duration = 9000; // 9 seconds
+      }
     }
 
     const frameInterval = setInterval(() => {
@@ -765,6 +813,11 @@ export function PetsScreen() {
       return 0;
     }
     
+    // If pet is dead, streak is 0
+    if (pet.health === 0) {
+      return 0;
+    }
+    
     // Get midnight of today
     const today = new Date();
     today.setHours(0, 0, 0, 0);
@@ -805,13 +858,24 @@ export function PetsScreen() {
   const handlePetSelect = (petType: PetType) => {
     if (petType === 'none') {
       setPet(null);
-      savePet(null); // Clear from storage
+      savePet(null); // Clear from storage (no type needed for clearing)
       setShowPetDropdown(false);
-    } else if (petType === 'cat') {
-      setShowPetDropdown(false);
-      setShowNameModal(true);
-      // Auto-show keyboard when modal opens
-      setTimeout(() => setShowKeyboard(true), 100);
+    } else if (petType === 'cat' || petType === 'puppy') {
+      // Check if pet of this type already exists
+      loadPet(petType).then((existingPet) => {
+        if (existingPet) {
+          // Pet already exists, switch to it
+          setPet(existingPet as Pet);
+          setShowPetDropdown(false);
+        } else {
+          // New pet, show name modal
+          setSelectedPetType(petType);
+          setShowPetDropdown(false);
+          setShowNameModal(true);
+          // Auto-show keyboard when modal opens
+          setTimeout(() => setShowKeyboard(true), 100);
+        }
+      });
     }
     // Panda and Penguin are disabled (coming soon)
   };
@@ -824,7 +888,7 @@ export function PetsScreen() {
       const midnightTimestamp = today.getTime();
       
       const newPet: Pet = {
-        type: 'cat',
+        type: selectedPetType,
         name: petName.trim().replace(/\s+/g, '').toUpperCase(), // Remove all spaces
         health: 5,
         lastFed: 0, // Initialize to 0 (before today's midnight) so action can be done
@@ -833,7 +897,7 @@ export function PetsScreen() {
         createdAt: midnightTimestamp, // Set to midnight of creation day
       };
       setPet(newPet);
-      savePet(newPet); // Save to storage
+      savePet(newPet, selectedPetType); // Save to storage with pet type
       setShowNameModal(false);
       setPetName('');
     }
@@ -846,7 +910,7 @@ export function PetsScreen() {
         name: renameInput.trim().replace(/\s+/g, '').toUpperCase(), // Remove all spaces
       };
       setPet(renamedPet);
-      savePet(renamedPet); // Save to storage
+      savePet(renamedPet, renamedPet.type); // Save to storage
       setShowRenameModal(false);
       setRenameInput('');
       setShowKeyboard(false);
@@ -881,7 +945,7 @@ export function PetsScreen() {
           createdAt: pet.createdAt,
         };
         setPet(updatedPet);
-        savePet(updatedPet); // Save to storage
+        savePet(updatedPet, updatedPet.type); // Save to storage
         console.log('Fed pet, new health:', updatedPet.health);
       }
     }
@@ -915,7 +979,7 @@ export function PetsScreen() {
           createdAt: pet.createdAt,
         };
         setPet(updatedPet);
-        savePet(updatedPet); // Save to storage
+        savePet(updatedPet, updatedPet.type); // Save to storage
         console.log('Pet pet, new health:', updatedPet.health);
       }
     }
@@ -949,7 +1013,7 @@ export function PetsScreen() {
           createdAt: pet.createdAt,
         };
         setPet(updatedPet);
-        savePet(updatedPet); // Save to storage
+        savePet(updatedPet, updatedPet.type); // Save to storage
         console.log('Played with pet, new health:', updatedPet.health);
       }
     }
@@ -967,7 +1031,7 @@ export function PetsScreen() {
       today.setHours(0, 0, 0, 0);
       const midnightTimestamp = today.getTime();
       
-      // Revive the pet - preserve original createdAt to maintain streak
+      // Revive the pet - reset createdAt to today's midnight to start fresh 24-hour cycle
       // Reset action timestamps to 0 so actions can be done again today
       const revivedPet = {
         ...pet,
@@ -975,11 +1039,10 @@ export function PetsScreen() {
         lastFed: 0, // Reset to 0 (before today's midnight) so action can be done
         lastPet: 0, // Reset to 0 (before today's midnight) so action can be done
         lastPlay: 0, // Reset to 0 (before today's midnight) so action can be done
-        // Keep original createdAt to preserve streak count (don't reset on revive)
-        createdAt: pet.createdAt || midnightTimestamp, // Preserve original creation date for streak
+        createdAt: midnightTimestamp, // Reset to today's midnight to start fresh 24-hour cycle
       };
       setPet(revivedPet);
-      savePet(revivedPet);
+      savePet(revivedPet, revivedPet.type);
       setShowRevivePopup(false);
       setActiveAnimation(null); // Reset animation to show catsit
     }
@@ -1187,7 +1250,7 @@ export function PetsScreen() {
                 ]}
               >
                 <Text style={[styles.dropdownLabel, { color: (ALL_THEMES[petsTheme] || PETS_THEMES[petsTheme] || ALL_THEMES['serene']).color }]}>
-                  {pet ? `🐱 ${pet.type.toUpperCase()}` : 'None'}
+                  {pet ? `${pet.type === 'puppy' ? '🐶' : '🐱'} ${pet.type.toUpperCase()}` : 'None'}
                 </Text>
                 <Text style={[styles.dropdownArrow, { color: (ALL_THEMES[petsTheme] || PETS_THEMES[petsTheme] || ALL_THEMES['serene']).color }]}>▼</Text>
               </TouchableOpacity>
@@ -1217,6 +1280,18 @@ export function PetsScreen() {
                     ]}
                   >
                     <Text style={[styles.dropdownOptionText, { color: (ALL_THEMES[petsTheme] || PETS_THEMES[petsTheme] || ALL_THEMES['serene']).color }]}>🐱 Cat</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    onPress={() => handlePetSelect('puppy')}
+                    style={[
+                      styles.dropdownOption, 
+                      { 
+                        backgroundColor: pet?.type === 'puppy' ? 'rgba(255, 255, 255, 0.1)' : 'transparent',
+                        borderBottomColor: 'rgba(255, 255, 255, 0.2)' 
+                      }
+                    ]}
+                  >
+                    <Text style={[styles.dropdownOptionText, { color: (ALL_THEMES[petsTheme] || PETS_THEMES[petsTheme] || ALL_THEMES['serene']).color }]}>🐶 Puppy</Text>
                   </TouchableOpacity>
                   <TouchableOpacity
                     disabled
@@ -1358,21 +1433,35 @@ export function PetsScreen() {
                 <Text style={styles.petNameDisplay}>{pet.name}</Text>
                 </TouchableOpacity>
               
-              {/* Animated Cat Sprite */}
+              {/* Animated Pet Sprite */}
               {pet.health === 0 ? (
                 <Image
-                  source={require('../../assets/pets/cat/catdead.png')}
+                  source={
+                    pet.type === 'puppy' 
+                      ? require('../../assets/pets/puppy/puppycry1.png') // Use cry frame for dead puppy
+                      : require('../../assets/pets/cat/catdead.png')
+                  }
                   style={styles.catSprite}
                   resizeMode="contain"
                 />
               ) : (
                 <Image
                   source={
-                    activeAnimation === 'feed' 
+                    pet.type === 'puppy'
+                      ? activeAnimation === 'feed'
+                        ? puppyEatFrames[animationFrame % puppyEatFrames.length]
+                        : activeAnimation === 'pet'
+                        ? happyPuppyFrames[animationFrame % happyPuppyFrames.length]
+                        : activeAnimation === 'play'
+                        ? puppyPlayFrames[animationFrame % puppyPlayFrames.length]
+                        : pet.health === 1
+                        ? puppyCryFrames[sadAnimationFrame % puppyCryFrames.length]
+                        : puppySitFrames[currentCatFrame % puppySitFrames.length]
+                      : activeAnimation === 'feed' 
                       ? catBowlFrames[animationFrame]
                       : activeAnimation === 'pet'
                       ? happyCatFrames[animationFrame]
-                      :                     activeAnimation === 'play'
+                      : activeAnimation === 'play'
                       ? playCatFrames[animationFrame]
                       : pet.health === 1
                       ? sadCatFrames[sadAnimationFrame]
@@ -1791,7 +1880,11 @@ export function PetsScreen() {
                       />
                     ) : (
                       <Image
-                        source={catSitFrames[currentCatFrame]}
+                        source={
+                          pet.type === 'puppy'
+                            ? puppySitFrames[currentCatFrame % puppySitFrames.length]
+                            : catSitFrames[currentCatFrame]
+                        }
                         style={styles.shareableSprite}
                         resizeMode="contain"
                       />

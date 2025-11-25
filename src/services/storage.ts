@@ -6,6 +6,12 @@ const PETS_THEME_STORAGE_KEY = '@palmvoice_pets_theme';
 const PET_STORAGE_KEY = '@palmvoice_pet';
 const COINS_STORAGE_KEY = '@palmvoice_coins';
 const PURCHASED_THEMES_STORAGE_KEY = '@palmvoice_purchased_themes';
+const CURRENT_PET_TYPE_KEY = '@palmvoice_current_pet_type';
+
+// Helper function to get pet storage key by type
+function getPetStorageKey(petType: string): string {
+  return `@palmvoice_pet_${petType}`;
+}
 
 /**
  * Save tasks to AsyncStorage
@@ -91,17 +97,28 @@ export async function loadPetsTheme(): Promise<string | null> {
 }
 
 /**
- * Save pet data to AsyncStorage
+ * Save pet data to AsyncStorage (by pet type)
  */
-export async function savePet(pet: { type: string; name: string; health: number; lastFed: number; lastPet: number } | null): Promise<void> {
+export async function savePet(pet: { type: string; name: string; health: number; lastFed: number; lastPet: number } | null, petType?: string): Promise<void> {
   try {
     if (pet === null) {
-      await AsyncStorage.removeItem(PET_STORAGE_KEY);
-      console.log('Pet cleared from storage');
+      // If no pet type provided, clear the old single pet storage for backward compatibility
+      if (!petType) {
+        await AsyncStorage.removeItem(PET_STORAGE_KEY);
+        await AsyncStorage.removeItem(CURRENT_PET_TYPE_KEY);
+        console.log('Pet cleared from storage');
+      } else {
+        // Clear specific pet type
+        await AsyncStorage.removeItem(getPetStorageKey(petType));
+        console.log(`Pet ${petType} cleared from storage`);
+      }
     } else {
       const jsonValue = JSON.stringify(pet);
-      await AsyncStorage.setItem(PET_STORAGE_KEY, jsonValue);
-      console.log('Pet saved to storage:', pet.name);
+      const storageKey = getPetStorageKey(pet.type);
+      await AsyncStorage.setItem(storageKey, jsonValue);
+      // Also save current pet type
+      await AsyncStorage.setItem(CURRENT_PET_TYPE_KEY, pet.type);
+      console.log(`Pet ${pet.type} (${pet.name}) saved to storage`);
     }
   } catch (error) {
     console.error('Error saving pet:', error);
@@ -110,17 +127,44 @@ export async function savePet(pet: { type: string; name: string; health: number;
 }
 
 /**
- * Load pet data from AsyncStorage
+ * Load pet data from AsyncStorage (by pet type)
  */
-export async function loadPet(): Promise<{ type: string; name: string; health: number; lastFed: number; lastPet: number } | null> {
+export async function loadPet(petType?: string): Promise<{ type: string; name: string; health: number; lastFed: number; lastPet: number } | null> {
   try {
+    // If petType is provided, load that specific pet
+    if (petType) {
+      const jsonValue = await AsyncStorage.getItem(getPetStorageKey(petType));
+      if (jsonValue === null) {
+        return null;
+      }
+      const pet = JSON.parse(jsonValue);
+      console.log(`Pet ${petType} (${pet.name}) loaded from storage`);
+      return pet;
+    }
+    
+    // Otherwise, try to load current pet type, or fall back to old storage
+    const currentPetType = await AsyncStorage.getItem(CURRENT_PET_TYPE_KEY);
+    if (currentPetType) {
+      const jsonValue = await AsyncStorage.getItem(getPetStorageKey(currentPetType));
+      if (jsonValue !== null) {
+        const pet = JSON.parse(jsonValue);
+        console.log(`Current pet ${currentPetType} (${pet.name}) loaded from storage`);
+        return pet;
+      }
+    }
+    
+    // Backward compatibility: try old storage key
     const jsonValue = await AsyncStorage.getItem(PET_STORAGE_KEY);
     if (jsonValue === null) {
       return null;
     }
     
     const pet = JSON.parse(jsonValue);
-    console.log('Pet loaded from storage:', pet.name);
+    console.log('Pet loaded from old storage:', pet.name);
+    // Migrate to new storage format
+    if (pet.type) {
+      await savePet(pet, pet.type);
+    }
     return pet;
   } catch (error) {
     console.error('Error loading pet:', error);
