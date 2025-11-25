@@ -164,6 +164,12 @@ const catSitFrames = [
   require('../../assets/pets/cat/catsit4.png'),
 ];
 
+// Puppy sit animation frames
+const puppySitFrames = [
+  require('../../assets/pets/puppy/puppysit1.png'),
+  require('../../assets/pets/puppy/puppysit2.png'),
+];
+
 export default function LauncherScreen() {
   const router = useRouter();
   const [pet, setPet] = useState<Pet | null>(null);
@@ -198,13 +204,17 @@ export default function LauncherScreen() {
     });
   }, []);
 
-  // Animate cat sit frames
+  // Animate pet sit frames
   useEffect(() => {
     if (!pet || pet.health === 0) {
       return;
     }
     const interval = setInterval(() => {
-      setCurrentCatFrame((prev) => (prev + 1) % catSitFrames.length);
+      if (pet.type === 'puppy') {
+        setCurrentCatFrame((prev) => (prev + 1) % puppySitFrames.length);
+      } else {
+        setCurrentCatFrame((prev) => (prev + 1) % catSitFrames.length);
+      }
     }, 1000);
     return () => clearInterval(interval);
   }, [pet]);
@@ -354,17 +364,25 @@ export default function LauncherScreen() {
                     <View style={styles.petStatusTop}>
                       <Text style={[styles.cardTitle, { color: '#FFFFFF' }]}>PET STATUS</Text>
                       
-                      {/* Cat Sprite */}
+                      {/* Pet Sprite */}
                       <View style={styles.petSpriteContainer}>
                         {pet.health === 0 ? (
                           <Image
-                            source={require('../../assets/pets/cat/catdead.png')}
+                            source={
+                              pet.type === 'puppy'
+                                ? require('../../assets/pets/puppy/puppycry1.png')
+                                : require('../../assets/pets/cat/catdead.png')
+                            }
                             style={styles.petSprite}
                             resizeMode="contain"
                           />
                         ) : (
                           <Image
-                            source={catSitFrames[currentCatFrame]}
+                            source={
+                              pet.type === 'puppy'
+                                ? puppySitFrames[currentCatFrame % puppySitFrames.length]
+                                : catSitFrames[currentCatFrame]
+                            }
                             style={styles.petSprite}
                             resizeMode="contain"
                           />
@@ -454,7 +472,7 @@ export default function LauncherScreen() {
                   <Text style={[styles.noPetText, { color: '#FFFFFF' }]}>NO PET</Text>
                   <TouchableOpacity
                     onPress={() => router.push('/pets')}
-                    style={[styles.actionButton, { backgroundColor: PETS_THEMES[petsTheme].color, borderColor: '#FFFFFF' }]}
+                    style={[styles.actionButton, { backgroundColor: (ALL_THEMES[petsTheme] || PETS_THEMES[petsTheme] || ALL_THEMES['serene']).color, borderColor: '#FFFFFF' }]}
                   >
                     <Text style={[styles.actionButtonText, { color: '#FFFFFF' }]}>CREATE PET</Text>
                   </TouchableOpacity>

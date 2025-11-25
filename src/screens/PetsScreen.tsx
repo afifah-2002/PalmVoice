@@ -7,7 +7,7 @@ import { FavoriteButtons } from '../components/FavoriteButtons';
 import { PixelKeyboard } from '../components/PixelKeyboard';
 import { PALM_THEMES, PalmTheme } from '../constants/palmThemes';
 import { useTheme } from '../contexts/ThemeContext';
-import { loadCoins, loadPet, loadPetsTheme, loadPurchasedThemes, loadTasks, saveCoins, savePet, savePetsTheme, savePurchasedThemes } from '../services/storage';
+import { loadCoins, loadHealthPotions, loadPet, loadPetsTheme, loadPurchasedPets, loadPurchasedThemes, loadRevivalTokens, loadTasks, saveCoins, saveHealthPotions, savePet, savePetsTheme, savePurchasedPets, savePurchasedThemes, saveRevivalTokens } from '../services/storage';
 import { Task } from '../types/Task';
 
 type PetsTheme = 'serene' | 'purple-skies' | 'orange-kiss' | 'cherryblossom' | 'feelslike2002' | 'feelslikechristmas' | 'fishpond' | 'glowy' | 'magical' | 'minecraft' | 'ohsoflowery' | 'peace' | 'secretgarden' | 'snowynight' | 'therapeutic' | 'waterfall' | 'anime' | 'autumn' | 'infinite' | 'moonlight';
@@ -21,7 +21,7 @@ interface Pet {
   lastFed: number;
   lastPet: number;
   lastPlay?: number; // Timestamp of last play action
-  createdAt?: number; // Timestamp of midnight on creation day
+  createdAt?: number; // Timestamp of when pet was created (24-hour cycle starts from this point)
 }
 
 // Theme mapping with all available themes
@@ -161,6 +161,34 @@ const PETS_THEMES = {
   'orange-kiss': ALL_THEMES['orange-kiss'],
 };
 
+// Shop pets with pricing
+const SHOP_PETS: Record<string, { name: string; icon: any; price: number; emoji: string }> = {
+  'cat': {
+    name: 'Cat',
+    icon: require('../../assets/pets/cat/catsit2.png'),
+    price: 0, // Free
+    emoji: '🐱',
+  },
+  'puppy': {
+    name: 'Puppy',
+    icon: require('../../assets/pets/puppy/puppysit1.png'),
+    price: 30,
+    emoji: '🐶',
+  },
+  'panda': {
+    name: 'Panda',
+    icon: require('../../assets/pets/cat/catsit2.png'), // Placeholder until panda assets exist
+    price: 50,
+    emoji: '🐼',
+  },
+  'penguin': {
+    name: 'Penguin',
+    icon: require('../../assets/pets/cat/catsit2.png'), // Placeholder until penguin assets exist
+    price: 50,
+    emoji: '🐧',
+  },
+};
+
 export function PetsScreen() {
   const [fontsLoaded] = useFonts({
     PressStart2P_400Regular,
@@ -227,6 +255,13 @@ export function PetsScreen() {
   const [currentShopBox, setCurrentShopBox] = useState(1);
   const [showShopModal, setShowShopModal] = useState(false);
   const [showThemesModal, setShowThemesModal] = useState(false);
+  const [showPetsModal, setShowPetsModal] = useState(false);
+  const [showItemsModal, setShowItemsModal] = useState(false);
+  const petsModalScale = useRef(new Animated.Value(0.9)).current;
+  const itemsModalScale = useRef(new Animated.Value(0.9)).current;
+  const [purchasedPets, setPurchasedPets] = useState<string[]>(['cat']); // Cat is free by default
+  const [revivalTokens, setRevivalTokens] = useState(0); // Revival insurance tokens
+  const [healthPotions, setHealthPotions] = useState(0); // Health potions
   const [treasureBoxMessage, setTreasureBoxMessage] = useState('click me!');
   const treasureBoxOpacity = useRef(new Animated.Value(0)).current;
   const treasureBoxScale = useRef(new Animated.Value(0.8)).current;
@@ -311,6 +346,7 @@ export function PetsScreen() {
   // Puppy eat animation frames
   const puppyEatFrames = [
     require('../../assets/pets/puppy/puppyeat1.png'),
+    require('../../assets/pets/puppy/puppyeat2.jpg'),
     require('../../assets/pets/puppy/puppyeat3.png'),
   ];
 
@@ -318,6 +354,7 @@ export function PetsScreen() {
   const puppyCryFrames = [
     require('../../assets/pets/puppy/puppycry1.png'),
     require('../../assets/pets/puppy/puppycry2.png'),
+    require('../../assets/pets/puppy/puppycry3.jpg'),
   ];
 
   // Puppy pet animation frames (happy)
@@ -330,6 +367,8 @@ export function PetsScreen() {
   // Puppy play animation frames
   const puppyPlayFrames = [
     require('../../assets/pets/puppy/puppyplay1.png'),
+    require('../../assets/pets/puppy/puppyplay2.jpg'),
+    require('../../assets/pets/puppy/puppyplay3.jpg'),
   ];
 
   // Load saved pets theme and pet data on mount
@@ -341,14 +380,11 @@ export function PetsScreen() {
     });
     loadPet().then((savedPet) => {
       if (savedPet) {
-        // Backward compatibility: if pet doesn't have createdAt, set it to midnight of today
+        // Backward compatibility: if pet doesn't have createdAt, set it to now
         if (!savedPet.createdAt) {
-          const today = new Date();
-          today.setHours(0, 0, 0, 0);
-          const midnightTimestamp = today.getTime();
           const updatedPet = {
             ...savedPet,
-            createdAt: midnightTimestamp,
+            createdAt: Date.now(), // Start 24-hour cycle from now
           };
           setPet(updatedPet);
           savePet(updatedPet, updatedPet.type);
@@ -364,6 +400,15 @@ export function PetsScreen() {
     });
     loadPurchasedThemes().then((themes) => {
       setPurchasedThemes(themes);
+    });
+    loadPurchasedPets().then((pets) => {
+      setPurchasedPets(pets);
+    });
+    loadRevivalTokens().then((tokens) => {
+      setRevivalTokens(tokens);
+    });
+    loadHealthPotions().then((potions) => {
+      setHealthPotions(potions);
     });
     loadTasks().then((loadedTasks) => {
       setTasks(loadedTasks);
@@ -405,8 +450,8 @@ export function PetsScreen() {
     return `${hours}h ${minutes}m ${seconds}s`;
   };
 
-  // Calculate health based on time elapsed since midnight of creation day
-  // 1 heart per 4.8 hours = 17,280,000 milliseconds
+  // Calculate health based on time elapsed since pet was created
+  // 1 heart per 4.8 hours = 17,280,000 milliseconds (5 hearts = 24 hours)
   const calculateHealthFromTime = (pet: Pet): number => {
     if (!pet.createdAt) {
       // For backward compatibility, if createdAt doesn't exist, return current health
@@ -429,6 +474,7 @@ export function PetsScreen() {
   };
 
   // Update health based on time elapsed (check every minute)
+  // Use pet?.createdAt as dependency so it only re-runs when a new pet is created, not on every pet state change
   useEffect(() => {
     if (!pet) {
       return;
@@ -442,24 +488,37 @@ export function PetsScreen() {
         
         const calculatedHealth = calculateHealthFromTime(currentPet);
         
+        // Check if any action was performed recently (within last 30 seconds)
+        // If so, don't reduce health - allow temporary boosts to persist
+        const now = Date.now();
+        const recentActionThreshold = 30 * 1000; // 30 seconds
+        const lastActionTime = Math.max(
+          currentPet.lastFed || 0,
+          currentPet.lastPet || 0,
+          currentPet.lastPlay || 0
+        );
+        const actionWasRecent = (now - lastActionTime) < recentActionThreshold;
+        
+        // Don't reduce health if action was just performed
+        if (actionWasRecent && currentPet.health > calculatedHealth) {
+          console.log('Action was recent, keeping boosted health');
+          return currentPet;
+        }
+        
         // Update health based on time calculation
-        // If current health is above calculated (from actions), reduce it to calculated
-        // If current health is below calculated (shouldn't happen, but handle it), set to calculated
         let newHealth = currentPet.health;
         
         // Reduce health if above calculated (time-based decline)
         if (currentPet.health > calculatedHealth) {
-          // Health was increased by actions, but time has passed - reduce it
           newHealth = calculatedHealth;
         }
         
         // Only increase health if it's below calculated (shouldn't happen normally)
         if (currentPet.health < calculatedHealth) {
-          // Health is below calculated (shouldn't happen normally), set to calculated
           newHealth = calculatedHealth;
         }
         
-        // Always update health to match calculated value (time-based decline)
+        // Update if health changed
         if (newHealth !== currentPet.health) {
           console.log(`Updating health from ${currentPet.health} to ${newHealth}`);
           const updatedPet = {
@@ -474,14 +533,14 @@ export function PetsScreen() {
       });
     };
 
-    // Update immediately
+    // Update immediately on mount
     updateHealth();
 
     // Then update every minute
     const healthUpdateInterval = setInterval(updateHealth, 60000); // Every 1 minute
 
     return () => clearInterval(healthUpdateInterval);
-  }, [pet]);
+  }, [pet?.createdAt, pet?.type]); // Only re-run when pet is created/changed, not on health updates
 
 
   // Auto-close coins popup after 3 seconds
@@ -611,7 +670,7 @@ export function PetsScreen() {
         duration = 9000; // 9 seconds
       } else if (activeAnimation === 'pet') {
         frames = happyPuppyFrames;
-        duration = 12000; // 12 seconds
+        duration = 9000; // 9 seconds
       } else {
         frames = puppyPlayFrames;
         duration = 9000; // 9 seconds
@@ -709,6 +768,128 @@ export function PetsScreen() {
         useNativeDriver: true,
       }).start();
     }, 100);
+  };
+
+  // Handle pet purchase from shop
+  const handlePetPurchase = async (petKey: string) => {
+    const petData = SHOP_PETS[petKey];
+    if (!petData) return;
+
+    // Check if already purchased
+    if (purchasedPets.includes(petKey)) {
+      return;
+    }
+
+    // Check if user has sufficient coins
+    if (coins < petData.price) {
+      setPurchaseErrorMessage(`You need ${petData.price} coins to purchase this pet!`);
+      setShowPurchaseError(true);
+      setTimeout(() => {
+        setShowPurchaseError(false);
+      }, 3000);
+      return;
+    }
+
+    // Deduct coins
+    const newCoins = coins - petData.price;
+    setCoins(newCoins);
+    await saveCoins(newCoins);
+
+    // Add pet to purchased pets
+    const updatedPurchasedPets = [...purchasedPets, petKey];
+    setPurchasedPets(updatedPurchasedPets);
+    await savePurchasedPets(updatedPurchasedPets);
+    
+    // Stay on pets modal to show "OWNED" status
+  };
+
+  // Handle revival insurance purchase
+  const handleBuyRevivalInsurance = async () => {
+    const price = 15;
+    if (coins < price) {
+      setPurchaseErrorMessage(`You need ${price} coins to purchase Revival Insurance!`);
+      setShowPurchaseError(true);
+      setTimeout(() => setShowPurchaseError(false), 3000);
+      return;
+    }
+
+    const newCoins = coins - price;
+    setCoins(newCoins);
+    await saveCoins(newCoins);
+
+    const newTokens = revivalTokens + 1;
+    setRevivalTokens(newTokens);
+    await saveRevivalTokens(newTokens);
+
+    // Return to shop category modal
+    setShowItemsModal(false);
+    setTimeout(() => {
+      setShowShopModal(true);
+      shopModalScale.setValue(0.9);
+      Animated.spring(shopModalScale, {
+        toValue: 1,
+        tension: 50,
+        friction: 7,
+        useNativeDriver: true,
+      }).start();
+    }, 100);
+  };
+
+  // Handle health potion purchase
+  const handleBuyHealthPotion = async () => {
+    const price = 5;
+    if (coins < price) {
+      setPurchaseErrorMessage(`You need ${price} coins to purchase Health Potion!`);
+      setShowPurchaseError(true);
+      setTimeout(() => setShowPurchaseError(false), 3000);
+      return;
+    }
+
+    const newCoins = coins - price;
+    setCoins(newCoins);
+    await saveCoins(newCoins);
+
+    const newPotions = healthPotions + 1;
+    setHealthPotions(newPotions);
+    await saveHealthPotions(newPotions);
+
+    // Return to shop category modal
+    setShowItemsModal(false);
+    setTimeout(() => {
+      setShowShopModal(true);
+      shopModalScale.setValue(0.9);
+      Animated.spring(shopModalScale, {
+        toValue: 1,
+        tension: 50,
+        friction: 7,
+        useNativeDriver: true,
+      }).start();
+    }, 100);
+  };
+
+  // Use health potion to restore 2 hearts
+  const useHealthPotion = async () => {
+    if (healthPotions <= 0 || !pet || pet.health >= 5 || pet.health === 0) {
+      return;
+    }
+
+    const newHealth = Math.min(5, pet.health + 2);
+    const now = Date.now();
+    const hoursPerHeart = 4.8;
+    const millisecondsPerHeart = hoursPerHeart * 60 * 60 * 1000;
+    const newCreatedAt = now - ((5 - newHealth) * millisecondsPerHeart);
+
+    const updatedPet: Pet = {
+      ...pet,
+      health: newHealth,
+      createdAt: newCreatedAt,
+    };
+    setPet(updatedPet);
+    savePet(updatedPet, updatedPet.type);
+
+    const newPotions = healthPotions - 1;
+    setHealthPotions(newPotions);
+    await saveHealthPotions(newPotions);
   };
 
   // Helper function to render a theme item
@@ -860,41 +1041,48 @@ export function PetsScreen() {
       setPet(null);
       savePet(null); // Clear from storage (no type needed for clearing)
       setShowPetDropdown(false);
-    } else if (petType === 'cat' || petType === 'puppy') {
+    } else if (purchasedPets.includes(petType)) {
+      // Pet is purchased, can be selected
       // Check if pet of this type already exists
       loadPet(petType).then((existingPet) => {
         if (existingPet) {
           // Pet already exists, switch to it
           setPet(existingPet as Pet);
+          // Save as current pet so it loads on next visit
+          savePet(existingPet, existingPet.type);
           setShowPetDropdown(false);
         } else {
           // New pet, show name modal
           setSelectedPetType(petType);
-          setShowPetDropdown(false);
-          setShowNameModal(true);
+      setShowPetDropdown(false);
+      setShowNameModal(true);
           // Auto-show keyboard when modal opens
           setTimeout(() => setShowKeyboard(true), 100);
         }
       });
+    } else {
+      // Pet not purchased - show shop message
+      setPurchaseErrorMessage(`Purchase ${SHOP_PETS[petType]?.name || petType} from the shop first!`);
+      setShowPurchaseError(true);
+      setTimeout(() => {
+        setShowPurchaseError(false);
+      }, 3000);
+      setShowPetDropdown(false);
     }
-    // Panda and Penguin are disabled (coming soon)
   };
 
   const handleNameSubmit = () => {
     if (petName.trim()) {
-      // Get midnight of today
-      const today = new Date();
-      today.setHours(0, 0, 0, 0);
-      const midnightTimestamp = today.getTime();
+      const now = Date.now();
       
       const newPet: Pet = {
         type: selectedPetType,
         name: petName.trim().replace(/\s+/g, '').toUpperCase(), // Remove all spaces
         health: 5,
-        lastFed: 0, // Initialize to 0 (before today's midnight) so action can be done
-        lastPet: 0, // Initialize to 0 (before today's midnight) so action can be done
-        lastPlay: 0, // Initialize to 0 (before today's midnight) so action can be done
-        createdAt: midnightTimestamp, // Set to midnight of creation day
+        lastFed: 0, // Initialize to 0 so action can be done
+        lastPet: 0, // Initialize to 0 so action can be done
+        lastPlay: 0, // Initialize to 0 so action can be done
+        createdAt: now, // 24-hour cycle starts from creation time
       };
       setPet(newPet);
       savePet(newPet, selectedPetType); // Save to storage with pet type
@@ -935,18 +1123,26 @@ export function PetsScreen() {
         
         setActiveAnimation('feed');
         const newHealth = Math.min(5, pet.health + 1); // Cap at 5
+        const now = Date.now();
+        // Reset createdAt so the 4.8-hour clock starts from the new health level
+        // Formula: createdAt = now - (heartsLost * 4.8hours)
+        // heartsLost = 5 - newHealth
+        const hoursPerHeart = 4.8;
+        const millisecondsPerHeart = hoursPerHeart * 60 * 60 * 1000;
+        const newCreatedAt = now - ((5 - newHealth) * millisecondsPerHeart);
+        
         const updatedPet: Pet = {
           type: pet.type,
           name: pet.name,
           health: newHealth,
-        lastFed: Date.now(),
+          lastFed: now,
           lastPet: pet.lastPet,
           lastPlay: pet.lastPlay,
-          createdAt: pet.createdAt,
+          createdAt: newCreatedAt, // Reset to maintain new health level
         };
         setPet(updatedPet);
         savePet(updatedPet, updatedPet.type); // Save to storage
-        console.log('Fed pet, new health:', updatedPet.health);
+        console.log('Fed pet, new health:', updatedPet.health, 'createdAt reset');
       }
     }
   };
@@ -969,18 +1165,24 @@ export function PetsScreen() {
         
         setActiveAnimation('pet');
         const newHealth = Math.min(5, pet.health + 1); // Cap at 5
+        const now = Date.now();
+        // Reset createdAt so the 4.8-hour clock starts from the new health level
+        const hoursPerHeart = 4.8;
+        const millisecondsPerHeart = hoursPerHeart * 60 * 60 * 1000;
+        const newCreatedAt = now - ((5 - newHealth) * millisecondsPerHeart);
+        
         const updatedPet: Pet = {
           type: pet.type,
           name: pet.name,
           health: newHealth,
           lastFed: pet.lastFed,
-        lastPet: Date.now(),
+          lastPet: now,
           lastPlay: pet.lastPlay,
-          createdAt: pet.createdAt,
+          createdAt: newCreatedAt, // Reset to maintain new health level
         };
         setPet(updatedPet);
         savePet(updatedPet, updatedPet.type); // Save to storage
-        console.log('Pet pet, new health:', updatedPet.health);
+        console.log('Pet pet, new health:', updatedPet.health, 'createdAt reset');
       }
     }
   };
@@ -1003,49 +1205,63 @@ export function PetsScreen() {
         
         setActiveAnimation('play');
         const newHealth = Math.min(5, pet.health + 1); // Cap at 5
+        const now = Date.now();
+        // Reset createdAt so the 4.8-hour clock starts from the new health level
+        const hoursPerHeart = 4.8;
+        const millisecondsPerHeart = hoursPerHeart * 60 * 60 * 1000;
+        const newCreatedAt = now - ((5 - newHealth) * millisecondsPerHeart);
+        
         const updatedPet: Pet = {
           type: pet.type,
           name: pet.name,
           health: newHealth,
           lastFed: pet.lastFed,
           lastPet: pet.lastPet,
-          lastPlay: Date.now(),
-          createdAt: pet.createdAt,
+          lastPlay: now,
+          createdAt: newCreatedAt, // Reset to maintain new health level
         };
         setPet(updatedPet);
         savePet(updatedPet, updatedPet.type); // Save to storage
-        console.log('Played with pet, new health:', updatedPet.health);
+        console.log('Played with pet, new health:', updatedPet.health, 'createdAt reset');
       }
     }
   };
 
-  const handleRevive = () => {
-    if (pet && coins >= 5) {
+  const handleRevive = async () => {
+    if (!pet) return;
+    
+    // Check if we have revival tokens first (free revival)
+    if (revivalTokens > 0) {
+      // Use revival token
+      const newTokens = revivalTokens - 1;
+      setRevivalTokens(newTokens);
+      await saveRevivalTokens(newTokens);
+    } else if (coins >= 5) {
       // Deduct 5 coins
       const newCoins = coins - 5;
       setCoins(newCoins);
-      saveCoins(newCoins);
-      
-      // Get midnight of today
-      const today = new Date();
-      today.setHours(0, 0, 0, 0);
-      const midnightTimestamp = today.getTime();
-      
-      // Revive the pet - reset createdAt to today's midnight to start fresh 24-hour cycle
-      // Reset action timestamps to 0 so actions can be done again today
-      const revivedPet = {
-        ...pet,
-        health: 5,
-        lastFed: 0, // Reset to 0 (before today's midnight) so action can be done
-        lastPet: 0, // Reset to 0 (before today's midnight) so action can be done
-        lastPlay: 0, // Reset to 0 (before today's midnight) so action can be done
-        createdAt: midnightTimestamp, // Reset to today's midnight to start fresh 24-hour cycle
-      };
-      setPet(revivedPet);
-      savePet(revivedPet, revivedPet.type);
-      setShowRevivePopup(false);
-      setActiveAnimation(null); // Reset animation to show catsit
+      await saveCoins(newCoins);
+    } else {
+      // Not enough coins and no tokens
+      return;
     }
+    
+    const now = Date.now();
+    
+    // Revive the pet - reset createdAt to now to start fresh 24-hour cycle
+    // Reset action timestamps to 0 so actions can be done again
+    const revivedPet = {
+      ...pet,
+      health: 5,
+      lastFed: 0, // Reset to 0 so action can be done
+      lastPet: 0, // Reset to 0 so action can be done
+      lastPlay: 0, // Reset to 0 so action can be done
+      createdAt: now, // 24-hour cycle starts from revive time
+    };
+    setPet(revivedPet);
+    savePet(revivedPet, revivedPet.type);
+    setShowRevivePopup(false);
+    setActiveAnimation(null); // Reset animation to show catsit
   };
 
   const startGame = () => {
@@ -1287,23 +1503,30 @@ export function PetsScreen() {
                       styles.dropdownOption, 
                       { 
                         backgroundColor: pet?.type === 'puppy' ? 'rgba(255, 255, 255, 0.1)' : 'transparent',
-                        borderBottomColor: 'rgba(255, 255, 255, 0.2)' 
+                        borderBottomColor: 'rgba(255, 255, 255, 0.2)',
+                        opacity: purchasedPets.includes('puppy') ? 1 : 0.6
                       }
                     ]}
                   >
-                    <Text style={[styles.dropdownOptionText, { color: (ALL_THEMES[petsTheme] || PETS_THEMES[petsTheme] || ALL_THEMES['serene']).color }]}>🐶 Puppy</Text>
+                    <Text style={[styles.dropdownOptionText, { color: purchasedPets.includes('puppy') ? (ALL_THEMES[petsTheme] || PETS_THEMES[petsTheme] || ALL_THEMES['serene']).color : '#888888' }]}>
+                      🐶 Puppy {!purchasedPets.includes('puppy') && '🔒'}
+                    </Text>
                   </TouchableOpacity>
                   <TouchableOpacity
-                    disabled
-                    style={[styles.dropdownOption, { borderBottomColor: 'rgba(255, 255, 255, 0.2)', opacity: 0.5 }]}
+                    onPress={() => handlePetSelect('panda')}
+                    style={[styles.dropdownOption, { borderBottomColor: 'rgba(255, 255, 255, 0.2)', opacity: purchasedPets.includes('panda') ? 1 : 0.6 }]}
                   >
-                    <Text style={[styles.dropdownOptionText, { color: '#888888' }]}>🐼 Panda</Text>
+                    <Text style={[styles.dropdownOptionText, { color: purchasedPets.includes('panda') ? (ALL_THEMES[petsTheme] || PETS_THEMES[petsTheme] || ALL_THEMES['serene']).color : '#888888' }]}>
+                      🐼 Panda {!purchasedPets.includes('panda') && '🔒'}
+                    </Text>
                   </TouchableOpacity>
                   <TouchableOpacity
-                    disabled
-                    style={[styles.dropdownOption, { opacity: 0.5 }]}
+                    onPress={() => handlePetSelect('penguin')}
+                    style={[styles.dropdownOption, { opacity: purchasedPets.includes('penguin') ? 1 : 0.6 }]}
                   >
-                    <Text style={[styles.dropdownOptionText, { color: '#888888' }]}>🐧 Penguin</Text>
+                    <Text style={[styles.dropdownOptionText, { color: purchasedPets.includes('penguin') ? (ALL_THEMES[petsTheme] || PETS_THEMES[petsTheme] || ALL_THEMES['serene']).color : '#888888' }]}>
+                      🐧 Penguin {!purchasedPets.includes('penguin') && '🔒'}
+                    </Text>
                   </TouchableOpacity>
                 </View>
               )}
@@ -1747,23 +1970,36 @@ export function PetsScreen() {
                 >
                   <Text style={styles.reviveCloseButtonText}>✕</Text>
                 </TouchableOpacity>
-                <Text style={styles.reviveText}>USE 5 COINS TO REVIVE</Text>
+                <Text style={styles.reviveText}>
+                  {revivalTokens > 0 ? 'USE REVIVAL TOKEN' : 'USE 5 COINS TO REVIVE'}
+                </Text>
                 <View style={styles.reviveInfoContainer}>
-                  <Text style={styles.reviveInfoText}>YOU HAVE {coins} COINS</Text>
+                  {revivalTokens > 0 ? (
+                    <View style={styles.reviveTokenInfo}>
+                      <Image
+                        source={require('../../assets/pets/shop/insurance.png')}
+                        style={styles.reviveTokenIcon}
+                        resizeMode="contain"
+                      />
+                      <Text style={styles.reviveInfoText}>TOKENS: {revivalTokens}</Text>
+                    </View>
+                  ) : (
+                    <Text style={styles.reviveInfoText}>YOU HAVE {coins} COINS</Text>
+                  )}
                 </View>
                 <TouchableOpacity
-                  onPress={coins >= 5 ? handleRevive : startGame}
+                  onPress={(revivalTokens > 0 || coins >= 5) ? handleRevive : startGame}
                   style={[
                     styles.reviveButton,
-                    coins < 5 && styles.reviveButtonDisabled
+                    (revivalTokens === 0 && coins < 5) && styles.reviveButtonDisabled
                   ]}
                   activeOpacity={0.8}
                 >
                   <Text style={[
                     styles.reviveButtonText,
-                    coins < 5 && styles.reviveButtonTextDisabled
+                    (revivalTokens === 0 && coins < 5) && styles.reviveButtonTextDisabled
                   ]}>
-                    {coins >= 5 ? 'REVIVE' : 'PLAY GAME'}
+                    {(revivalTokens > 0 || coins >= 5) ? 'REVIVE' : 'PLAY GAME'}
                   </Text>
                 </TouchableOpacity>
               </View>
@@ -1793,13 +2029,60 @@ export function PetsScreen() {
             </View>
           )}
 
-          {/* Coins Popup - Shows coins count */}
+          {/* Coins Popup - Shows coins count and items */}
           {showCoinsPopup && (
             <View style={styles.coinsOverlay}>
               <View style={[styles.coinsPopup, { backgroundColor: `${(ALL_THEMES[petsTheme] || PETS_THEMES[petsTheme] || ALL_THEMES['serene']).color}DD`, borderColor: (ALL_THEMES[petsTheme] || PETS_THEMES[petsTheme] || ALL_THEMES['serene']).color }]}>
+                <TouchableOpacity
+                  onPress={() => setShowCoinsPopup(false)}
+                  style={styles.reviveCloseButton}
+                  activeOpacity={0.8}
+                >
+                  <Text style={styles.reviveCloseButtonText}>✕</Text>
+                </TouchableOpacity>
                 <Text style={[styles.coinsText, { color: '#FFFFFF' }]}>
-                  {coins} : YOU HAVE {coins} COINS!
+                  {coins} COINS
                 </Text>
+                
+                {/* Items Section */}
+                <View style={styles.coinsItemsSection}>
+                  {/* Revival Insurance */}
+                  <View style={styles.coinsItemRow}>
+                    <Image
+                      source={require('../../assets/pets/shop/insurance.png')}
+                      style={styles.coinsItemIcon}
+                      resizeMode="contain"
+                    />
+                    <Text style={[styles.coinsItemText, { color: '#FFFFFF' }]}>
+                      REVIVAL: {revivalTokens}
+                    </Text>
+                  </View>
+                  
+                  {/* Health Potion */}
+                  <View style={styles.coinsItemRow}>
+                    <Image
+                      source={require('../../assets/pets/shop/potion.png')}
+                      style={styles.coinsItemIcon}
+                      resizeMode="contain"
+                    />
+                    <Text style={[styles.coinsItemText, { color: '#FFFFFF' }]}>
+                      POTIONS: {healthPotions}
+                    </Text>
+                    {healthPotions > 0 && pet && pet.health > 0 && pet.health < 5 && (
+                      <TouchableOpacity
+                        onPress={() => {
+                          useHealthPotion();
+                          setShowCoinsPopup(false);
+                        }}
+                        style={styles.useItemButton}
+                        activeOpacity={0.8}
+                      >
+                        <Text style={styles.useItemButtonText}>USE</Text>
+                      </TouchableOpacity>
+                    )}
+                  </View>
+                </View>
+                
                 <TouchableOpacity
                   onPress={() => {
                     setShowCoinsPopup(false);
@@ -2073,6 +2356,19 @@ export function PetsScreen() {
 
                           {/* PETS */}
                           <TouchableOpacity 
+                            onPress={() => {
+                              setShowShopModal(false);
+                              setTimeout(() => {
+                                setShowPetsModal(true);
+                                petsModalScale.setValue(0.9);
+                                Animated.spring(petsModalScale, {
+                                  toValue: 1,
+                                  tension: 50,
+                                  friction: 7,
+                                  useNativeDriver: true,
+                                }).start();
+                              }, 100);
+                            }}
                             style={styles.shopCategoryButtonModal}
                             activeOpacity={0.8}
                           >
@@ -2088,6 +2384,19 @@ export function PetsScreen() {
 
                           {/* ITEMS */}
                           <TouchableOpacity 
+                            onPress={() => {
+                              setShowShopModal(false);
+                              setTimeout(() => {
+                                setShowItemsModal(true);
+                                itemsModalScale.setValue(0.9);
+                                Animated.spring(itemsModalScale, {
+                                  toValue: 1,
+                                  tension: 50,
+                                  friction: 7,
+                                  useNativeDriver: true,
+                                }).start();
+                              }, 100);
+                            }}
                             style={styles.shopCategoryButtonModal}
                             activeOpacity={0.8}
                           >
@@ -2180,6 +2489,187 @@ export function PetsScreen() {
                   {renderThemeItem('infinite', require('../../assets/pets/backgrounds/infinite.gif'), 'INFINITE', 30, true)}
                   {renderThemeItem('moonlight', require('../../assets/pets/backgrounds/moonlight.gif'), 'MOONLIGHT', 30, true)}
                 </ScrollView>
+              </Animated.View>
+            </View>
+          )}
+
+          {/* Pets Modal - Shop pets grid */}
+          {showPetsModal && (
+            <View style={[styles.shopModalOverlay, { zIndex: 2000 }]}>
+              <Animated.View 
+                style={[
+                  styles.themesModalContent,
+                  {
+                    transform: [{ scale: petsModalScale }],
+                  },
+                ]}
+              >
+                <TouchableOpacity
+                  onPress={() => {
+                    setShowPetsModal(false);
+                    setTimeout(() => {
+                      setShowShopModal(true);
+                      shopModalScale.setValue(0.9);
+                      Animated.spring(shopModalScale, {
+                        toValue: 1,
+                        tension: 50,
+                        friction: 7,
+                        useNativeDriver: true,
+                      }).start();
+                    }, 100);
+                  }}
+                  style={styles.shopModalCloseButton}
+                  activeOpacity={0.8}
+                >
+                  <Text style={styles.shopModalCloseButtonText}>✕</Text>
+                </TouchableOpacity>
+                
+                <Text style={styles.petsModalTitle}>PETS</Text>
+                
+                <ScrollView 
+                  style={styles.themesScrollView}
+                  contentContainerStyle={styles.themesScrollContent}
+                  showsVerticalScrollIndicator={true}
+                >
+                  {/* Pet Grid */}
+                  {Object.entries(SHOP_PETS).map(([petKey, petData]) => {
+                    const isPurchased = purchasedPets.includes(petKey);
+                    const isEquipped = pet?.type === petKey;
+                    
+                    return (
+                      <View
+                        key={petKey}
+                        style={[
+                          styles.themeItem,
+                          isPurchased && styles.themeItemPurchased,
+                          isEquipped && styles.themeItemEquipped
+                        ]}
+                      >
+                        <View style={styles.petIconContainer}>
+                          <Text style={styles.petEmoji}>{petData.emoji}</Text>
+                          <Image
+                            source={petData.icon}
+                            style={styles.petShopIcon}
+                            resizeMode="contain"
+                          />
+                        </View>
+                        <Text style={styles.themeName}>{petData.name.toUpperCase()}</Text>
+                        
+                        {isPurchased ? (
+                          <View style={styles.purchasedContainer}>
+                            <Text style={styles.ownedText}>OWNED</Text>
+                            {isEquipped && (
+                              <Text style={styles.equippedBadge}>EQUIPPED</Text>
+                            )}
+                          </View>
+                        ) : (
+                          <TouchableOpacity
+                            style={styles.themePriceContainer}
+                            onPress={() => handlePetPurchase(petKey)}
+                            activeOpacity={0.8}
+                          >
+                            <Image
+                              source={require('../../assets/rewards/coins.png')}
+                              style={styles.coinIcon}
+                              resizeMode="contain"
+                            />
+                            <Text style={petData.price >= 50 ? styles.exclusiveThemePrice : styles.themePrice}>
+                              {petData.price === 0 ? 'FREE' : petData.price}
+                            </Text>
+                          </TouchableOpacity>
+                        )}
+                      </View>
+                    );
+                  })}
+                </ScrollView>
+              </Animated.View>
+            </View>
+          )}
+
+          {/* Items Modal - Shop items */}
+          {showItemsModal && (
+            <View style={[styles.shopModalOverlay, { zIndex: 2000 }]}>
+              <Animated.View 
+                style={[
+                  styles.themesModalContent,
+                  {
+                    transform: [{ scale: itemsModalScale }],
+                    height: 'auto',
+                    maxHeight: '60%',
+                  },
+                ]}
+              >
+                <TouchableOpacity
+                  onPress={() => {
+                    setShowItemsModal(false);
+                    setTimeout(() => {
+                      setShowShopModal(true);
+                      shopModalScale.setValue(0.9);
+                      Animated.spring(shopModalScale, {
+                        toValue: 1,
+                        tension: 50,
+                        friction: 7,
+                        useNativeDriver: true,
+                      }).start();
+                    }, 100);
+                  }}
+                  style={styles.shopModalCloseButton}
+                  activeOpacity={0.8}
+                >
+                  <Text style={styles.shopModalCloseButtonText}>✕</Text>
+                </TouchableOpacity>
+                
+                <Text style={styles.petsModalTitle}>ITEMS</Text>
+                
+                <View style={styles.itemsGrid}>
+                  {/* Revival Insurance */}
+                  <View style={styles.itemCard}>
+                    <Image
+                      source={require('../../assets/pets/shop/insurance.png')}
+                      style={styles.itemImage}
+                      resizeMode="contain"
+                    />
+                    <Text style={styles.itemName}>REVIVAL{'\n'}INSURANCE</Text>
+                    <Text style={styles.itemDescription}>1 FREE REVIVAL</Text>
+                    <Text style={styles.itemOwned}>OWNED: {revivalTokens}</Text>
+                    <TouchableOpacity
+                      style={styles.itemBuyButton}
+                      onPress={handleBuyRevivalInsurance}
+                      activeOpacity={0.8}
+                    >
+                      <Image
+                        source={require('../../assets/rewards/coins.png')}
+                        style={styles.itemCoinIcon}
+                        resizeMode="contain"
+                      />
+                      <Text style={styles.itemPrice}>15</Text>
+                    </TouchableOpacity>
+                  </View>
+
+                  {/* Health Potion */}
+                  <View style={styles.itemCard}>
+                    <Image
+                      source={require('../../assets/pets/shop/potion.png')}
+                      style={styles.itemImage}
+                      resizeMode="contain"
+                    />
+                    <Text style={styles.itemName}>HEALTH{'\n'}POTION</Text>
+                    <Text style={styles.itemDescription}>+2 HEARTS</Text>
+                    <Text style={styles.itemOwned}>OWNED: {healthPotions}</Text>
+                    <TouchableOpacity
+                      style={styles.itemBuyButton}
+                      onPress={handleBuyHealthPotion}
+                      activeOpacity={0.8}
+                    >
+                      <Image
+                        source={require('../../assets/rewards/coins.png')}
+                        style={styles.itemCoinIcon}
+                        resizeMode="contain"
+                      />
+                      <Text style={styles.itemPrice}>5</Text>
+                    </TouchableOpacity>
+                  </View>
+                </View>
               </Animated.View>
             </View>
           )}
@@ -2644,6 +3134,16 @@ const styles = StyleSheet.create({
   reviveInfoContainer: {
     marginBottom: 20,
   },
+  reviveTokenInfo: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  reviveTokenIcon: {
+    width: 24,
+    height: 24,
+    marginRight: 8,
+  },
   reviveInfoText: {
     fontFamily: 'PressStart2P_400Regular',
     fontSize: 10,
@@ -2718,6 +3218,40 @@ const styles = StyleSheet.create({
     textShadowColor: 'rgba(0, 0, 0, 0.9)',
     textShadowOffset: { width: 1, height: 1 },
     textShadowRadius: 2,
+  },
+  coinsItemsSection: {
+    width: '100%',
+    marginVertical: 16,
+    paddingHorizontal: 8,
+  },
+  coinsItemRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 12,
+    paddingVertical: 4,
+  },
+  coinsItemIcon: {
+    width: 28,
+    height: 28,
+    marginRight: 12,
+  },
+  coinsItemText: {
+    fontFamily: 'PressStart2P_400Regular',
+    fontSize: 8,
+    flex: 1,
+  },
+  useItemButton: {
+    backgroundColor: 'rgba(76, 175, 80, 0.9)',
+    borderWidth: 2,
+    borderColor: '#388E3C',
+    borderRadius: 4,
+    paddingVertical: 4,
+    paddingHorizontal: 10,
+  },
+  useItemButtonText: {
+    fontFamily: 'PressStart2P_400Regular',
+    fontSize: 7,
+    color: '#FFFFFF',
   },
   streakPopupIcon: {
     width: 64,
@@ -3144,6 +3678,106 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
   },
   equipButtonTextActive: {
+    color: '#FFFFFF',
+  },
+  petsModalTitle: {
+    fontFamily: 'PressStart2P_400Regular',
+    fontSize: 14,
+    color: '#5C4033',
+    marginBottom: 16,
+    marginTop: 8,
+    textAlign: 'center',
+  },
+  petIconContainer: {
+    width: '100%',
+    height: 80,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 8,
+  },
+  petEmoji: {
+    fontSize: 24,
+    marginBottom: 4,
+  },
+  petShopIcon: {
+    width: 60,
+    height: 60,
+  },
+  purchasedContainer: {
+    alignItems: 'center',
+    marginTop: 4,
+  },
+  ownedText: {
+    fontFamily: 'PressStart2P_400Regular',
+    fontSize: 7,
+    color: '#4CAF50',
+  },
+  equippedBadge: {
+    fontFamily: 'PressStart2P_400Regular',
+    fontSize: 6,
+    color: '#2196F3',
+    marginTop: 2,
+  },
+  itemsGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    justifyContent: 'space-around',
+    paddingHorizontal: 8,
+    paddingBottom: 16,
+  },
+  itemCard: {
+    width: '45%',
+    backgroundColor: 'rgba(255, 229, 180, 0.6)',
+    borderWidth: 3,
+    borderColor: '#8B4513',
+    borderRadius: 8,
+    padding: 12,
+    alignItems: 'center',
+    marginBottom: 12,
+  },
+  itemImage: {
+    width: 60,
+    height: 60,
+    marginBottom: 8,
+  },
+  itemName: {
+    fontFamily: 'PressStart2P_400Regular',
+    fontSize: 7,
+    color: '#5C4033',
+    textAlign: 'center',
+    marginBottom: 4,
+  },
+  itemDescription: {
+    fontFamily: 'PressStart2P_400Regular',
+    fontSize: 6,
+    color: '#8B4513',
+    textAlign: 'center',
+    marginBottom: 4,
+  },
+  itemOwned: {
+    fontFamily: 'PressStart2P_400Regular',
+    fontSize: 6,
+    color: '#4CAF50',
+    marginBottom: 8,
+  },
+  itemBuyButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'rgba(139, 69, 19, 0.8)',
+    borderWidth: 2,
+    borderColor: '#8B4513',
+    borderRadius: 4,
+    paddingVertical: 4,
+    paddingHorizontal: 8,
+  },
+  itemCoinIcon: {
+    width: 16,
+    height: 16,
+    marginRight: 4,
+  },
+  itemPrice: {
+    fontFamily: 'PressStart2P_400Regular',
+    fontSize: 8,
     color: '#FFFFFF',
   },
   purchaseErrorOverlay: {
