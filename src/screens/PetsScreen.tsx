@@ -1,7 +1,7 @@
 import { PressStart2P_400Regular, useFonts } from '@expo-google-fonts/press-start-2p';
 import { router } from 'expo-router';
 import React, { useEffect, useRef, useState } from 'react';
-import { Animated, Image, ImageBackground, Share, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { Animated, Image, ImageBackground, ScrollView, Share, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import ViewShot from 'react-native-view-shot';
 import { FavoriteButtons } from '../components/FavoriteButtons';
 import { PixelKeyboard } from '../components/PixelKeyboard';
@@ -95,6 +95,20 @@ export function PetsScreen() {
   const [showStreakPopup, setShowStreakPopup] = useState(false);
   const [tasks, setTasks] = useState<Task[]>([]);
   const shareViewRef = useRef<ViewShot>(null);
+  const [showShop, setShowShop] = useState(false);
+  const [shopMessage, setShopMessage] = useState('Hello There!');
+  const shopTextOpacity = useRef(new Animated.Value(0)).current;
+  const shopTextScale = useRef(new Animated.Value(0.8)).current;
+  const [currentShopkeeperFrame, setCurrentShopkeeperFrame] = useState(0);
+  const [currentShopBox, setCurrentShopBox] = useState(1);
+  const [showShopModal, setShowShopModal] = useState(false);
+  const [showThemesModal, setShowThemesModal] = useState(false);
+  const [treasureBoxMessage, setTreasureBoxMessage] = useState('click me!');
+  const treasureBoxOpacity = useRef(new Animated.Value(0)).current;
+  const treasureBoxScale = useRef(new Animated.Value(0.8)).current;
+  const shopModalScale = useRef(new Animated.Value(0.9)).current;
+  const shopModalPulse = useRef(new Animated.Value(1)).current;
+  const themesModalScale = useRef(new Animated.Value(0.9)).current;
   const [showTryAgainPopup, setShowTryAgainPopup] = useState(false);
   const [tryAgainActionType, setTryAgainActionType] = useState<'feed' | 'pet' | 'play' | null>(null);
   const tryAgainPulseAnim = useRef(new Animated.Value(1)).current;
@@ -121,6 +135,12 @@ export function PetsScreen() {
     require('../../assets/pets/cat/catsit2.png'),
     require('../../assets/pets/cat/catsit3.png'),
     require('../../assets/pets/cat/catsit4.png'),
+  ];
+
+  // Shopkeeper animation frames
+  const shopkeeperFrames = [
+    require('../../assets/pets/shop/shopkeeper1.png'),
+    require('../../assets/pets/shop/shopkeeper2.png'),
   ];
 
   // Feed animation frames (catbowl)
@@ -353,6 +373,20 @@ export function PetsScreen() {
 
     return () => clearInterval(interval);
   }, [pet, activeAnimation]);
+
+  // Animate shopkeeper frames when shop is open
+  useEffect(() => {
+    if (!showShop) {
+      setCurrentShopkeeperFrame(0);
+      return;
+    }
+
+    const interval = setInterval(() => {
+      setCurrentShopkeeperFrame((prev) => (prev + 1) % shopkeeperFrames.length);
+    }, 1000); // 1 second interval
+
+    return () => clearInterval(interval);
+  }, [showShop]);
 
   // Animate hungry cat when health is 2 (but not 1)
   useEffect(() => {
@@ -1228,6 +1262,64 @@ export function PetsScreen() {
             </TouchableOpacity>
             
             <TouchableOpacity
+              onPress={() => {
+                setShowShop(true);
+                setCurrentShopBox(1);
+                setShowShopModal(false);
+                setShopMessage('Hello There!');
+                setTreasureBoxMessage('click me!');
+                shopTextOpacity.setValue(0);
+                shopTextScale.setValue(0.8);
+                treasureBoxOpacity.setValue(0);
+                treasureBoxScale.setValue(0.8);
+                // Show shopkeeper dialogue first
+                Animated.parallel([
+                  Animated.timing(shopTextOpacity, {
+                    toValue: 1,
+                    duration: 300,
+                    useNativeDriver: true,
+                  }),
+                  Animated.spring(shopTextScale, {
+                    toValue: 1,
+                    tension: 50,
+                    friction: 7,
+                    useNativeDriver: true,
+                  }),
+                ]).start();
+                // After 2 seconds, change shopkeeper message and show treasure box dialogue
+                setTimeout(() => {
+                  shopTextOpacity.setValue(0);
+                  shopTextScale.setValue(0.8);
+                  Animated.parallel([
+                    Animated.timing(shopTextOpacity, {
+                      toValue: 1,
+                      duration: 300,
+                      useNativeDriver: true,
+                    }),
+                    Animated.spring(shopTextScale, {
+                      toValue: 1,
+                      tension: 50,
+                      friction: 7,
+                      useNativeDriver: true,
+                    }),
+                  ]).start();
+                  setShopMessage('What would you like to buy today?');
+                  // Show treasure box dialogue
+                  Animated.parallel([
+                    Animated.timing(treasureBoxOpacity, {
+                      toValue: 1,
+                      duration: 300,
+                      useNativeDriver: true,
+                    }),
+                    Animated.spring(treasureBoxScale, {
+                      toValue: 1,
+                      tension: 50,
+                      friction: 7,
+                      useNativeDriver: true,
+                    }),
+                  ]).start();
+                }, 2000);
+              }}
               style={styles.bottomBarItem}
               activeOpacity={0.8}
             >
@@ -1449,6 +1541,417 @@ export function PetsScreen() {
                 </View>
               </ImageBackground>
             </ViewShot>
+          )}
+
+          {/* Shop Modal */}
+          {showShop && (
+            <View style={styles.shopOverlay}>
+              <ImageBackground
+                source={require('../../assets/pets/backgrounds/shopinterior.jpg')}
+                style={styles.shopBackground}
+                resizeMode="cover"
+              >
+                <View style={styles.shopContainer}>
+                  {/* Close Button */}
+                  <TouchableOpacity
+                    onPress={() => {
+                      setShowShop(false);
+                      setCurrentShopBox(1);
+                      setShowShopModal(false);
+                      treasureBoxOpacity.setValue(0);
+                    }}
+                    style={styles.shopCloseButton}
+                    activeOpacity={0.8}
+                  >
+                    <Text style={styles.shopCloseButtonText}>✕</Text>
+                  </TouchableOpacity>
+
+                  {/* Animated Shopkeeper */}
+                  <View style={styles.shopkeeperContainer}>
+                    <Image
+                      source={shopkeeperFrames[currentShopkeeperFrame]}
+                      style={styles.shopkeeperImage}
+                      resizeMode="contain"
+                    />
+                  </View>
+
+                  {/* Shopkeeper Dialogue Box */}
+                  <Animated.View 
+                    style={[
+                      styles.shopDialogueBox, 
+                      { 
+                        opacity: shopTextOpacity,
+                        transform: [{ scale: shopTextScale }],
+                      }
+                    ]}
+                  >
+                    <View style={styles.shopDialogueContent}>
+                      <Text style={styles.shopDialogueText}>{shopMessage}</Text>
+                    </View>
+                    {/* Speech bubble tail pointing right */}
+                    <View style={styles.shopDialogueTail} />
+                  </Animated.View>
+
+                  {/* Treasure Box Dialogue Box */}
+                  {!showShopModal && (
+                    <Animated.View 
+                      style={[
+                        styles.treasureBoxDialogueBox, 
+                        { 
+                          opacity: treasureBoxOpacity,
+                          transform: [{ scale: treasureBoxScale }],
+                        }
+                      ]}
+                    >
+                      <View style={styles.shopDialogueContent}>
+                        <Text style={styles.shopDialogueText}>{treasureBoxMessage}</Text>
+                      </View>
+                      {/* Speech bubble tail pointing down */}
+                      <View style={styles.treasureBoxDialogueTail} />
+                    </Animated.View>
+                  )}
+
+                  {/* Shop Box */}
+                  {!showShopModal && (
+                    <TouchableOpacity
+                      onPress={() => {
+                        // First show shopbox2
+                        setCurrentShopBox(2);
+                        // Then open modal after a short delay
+                        setTimeout(() => {
+                          setShowShopModal(true);
+                        }, 300);
+                      }}
+                      style={styles.shopBoxContainer}
+                      activeOpacity={0.8}
+                    >
+                      <Image
+                        source={currentShopBox === 1 
+                          ? require('../../assets/pets/shop/shopbox1.png')
+                          : require('../../assets/pets/shop/shopbox2.png')
+                        }
+                        style={styles.shopBoxImage}
+                        resizeMode="contain"
+                      />
+                    </TouchableOpacity>
+                  )}
+
+                  {/* Shop Category Modal */}
+                  {showShopModal && (
+                    <View style={styles.shopModalOverlay}>
+                      <Animated.View 
+                        style={[
+                          styles.shopModalContent,
+                          {
+                            transform: [
+                              { scale: shopModalScale },
+                              { scale: shopModalPulse },
+                            ],
+                          },
+                        ]}
+                      >
+                        <TouchableOpacity
+                          onPress={() => {
+                            setShowShopModal(false);
+                            shopModalPulse.stopAnimation();
+                            // After 0.25 seconds, reset shopbox2 to shopbox1
+                            setTimeout(() => {
+                              setCurrentShopBox(1);
+                            }, 250);
+                          }}
+                          style={styles.shopModalCloseButton}
+                          activeOpacity={0.8}
+                        >
+                          <Text style={styles.shopModalCloseButtonText}>✕</Text>
+                        </TouchableOpacity>
+                        
+                        <View style={styles.shopCategoriesGrid}>
+                          {/* THEMES */}
+                          <TouchableOpacity 
+                            onPress={() => {
+                              setShowShopModal(false);
+                              setTimeout(() => {
+                                setShowThemesModal(true);
+                                themesModalScale.setValue(0.9);
+                                Animated.spring(themesModalScale, {
+                                  toValue: 1,
+                                  tension: 50,
+                                  friction: 7,
+                                  useNativeDriver: true,
+                                }).start();
+                              }, 100);
+                            }}
+                            style={styles.shopCategoryButtonModal}
+                            activeOpacity={0.8}
+                          >
+                            <View style={styles.shopCategoryIcon}>
+                              <Image
+                                source={require('../../assets/pets/backgrounds/theme3.gif')}
+                                style={styles.shopCategoryImage}
+                                resizeMode="cover"
+                              />
+                            </View>
+                            <Text style={styles.shopCategoryTextModal}>THEMES</Text>
+                          </TouchableOpacity>
+
+                          {/* PETS */}
+                          <TouchableOpacity 
+                            style={styles.shopCategoryButtonModal}
+                            activeOpacity={0.8}
+                          >
+                            <View style={styles.shopCategoryIcon}>
+                              <Image
+                                source={require('../../assets/pets/cat/catsit2.png')}
+                                style={styles.shopCategoryImage}
+                                resizeMode="contain"
+                              />
+                            </View>
+                            <Text style={styles.shopCategoryTextModal}>PETS</Text>
+                          </TouchableOpacity>
+
+                          {/* ITEMS */}
+                          <TouchableOpacity 
+                            style={styles.shopCategoryButtonModal}
+                            activeOpacity={0.8}
+                          >
+                            <View style={styles.shopCategoryIcon}>
+                              <Image
+                                source={require('../../assets/pets/shop/potion.png')}
+                                style={styles.shopCategoryImage}
+                                resizeMode="contain"
+                              />
+                            </View>
+                            <Text style={styles.shopCategoryTextModal}>ITEMS</Text>
+                          </TouchableOpacity>
+
+                          {/* BUNDLES */}
+                          <TouchableOpacity 
+                            style={styles.shopCategoryButtonModal}
+                            activeOpacity={0.8}
+                          >
+                            <View style={styles.shopCategoryIcon}>
+                              <View style={styles.giftBoxIcon}>
+                                <View style={styles.giftBoxBody} />
+                                <View style={styles.giftBoxRibbon} />
+                              </View>
+                            </View>
+                            <Text style={styles.shopCategoryTextModal}>BUNDLES</Text>
+                          </TouchableOpacity>
+                        </View>
+                      </Animated.View>
+                    </View>
+                  )}
+                </View>
+              </ImageBackground>
+            </View>
+          )}
+
+          {/* Themes Modal - Outside shop container */}
+          {showThemesModal && (
+            <View style={[styles.shopModalOverlay, { zIndex: 2000 }]}>
+              <Animated.View 
+                style={[
+                  styles.themesModalContent,
+                  {
+                    transform: [{ scale: themesModalScale }],
+                  },
+                ]}
+              >
+                <TouchableOpacity
+                  onPress={() => setShowThemesModal(false)}
+                  style={styles.shopModalCloseButton}
+                  activeOpacity={0.8}
+                >
+                  <Text style={styles.shopModalCloseButtonText}>✕</Text>
+                </TouchableOpacity>
+                
+                <ScrollView 
+                  style={styles.themesScrollView}
+                  contentContainerStyle={styles.themesScrollContent}
+                  showsVerticalScrollIndicator={true}
+                >
+                  {/* Anime */}
+                  <TouchableOpacity style={styles.themeItem}>
+                    <Image
+                      source={require('../../assets/pets/backgrounds/anime.gif')}
+                      style={styles.themePreview}
+                      resizeMode="cover"
+                    />
+                    <Text style={styles.themeName}>ANIME</Text>
+                  </TouchableOpacity>
+
+                  {/* Autumn */}
+                  <TouchableOpacity style={styles.themeItem}>
+                    <Image
+                      source={require('../../assets/pets/backgrounds/autumn.gif')}
+                      style={styles.themePreview}
+                      resizeMode="cover"
+                    />
+                    <Text style={styles.themeName}>AUTUMN</Text>
+                  </TouchableOpacity>
+
+                  {/* Cherry Blossom */}
+                  <TouchableOpacity style={styles.themeItem}>
+                    <Image
+                      source={require('../../assets/pets/backgrounds/cherryblossom.jpg')}
+                      style={styles.themePreview}
+                      resizeMode="cover"
+                    />
+                    <Text style={styles.themeName}>CHERRYBLOSSOM</Text>
+                  </TouchableOpacity>
+
+                  {/* Feels Like 2002 */}
+                  <TouchableOpacity style={styles.themeItem}>
+                    <Image
+                      source={require('../../assets/pets/backgrounds/feelslike2002.jpg')}
+                      style={styles.themePreview}
+                      resizeMode="cover"
+                    />
+                    <Text style={styles.themeName}>FEELSLIKE2002</Text>
+                  </TouchableOpacity>
+
+                  {/* Feels Like Christmas */}
+                  <TouchableOpacity style={styles.themeItem}>
+                    <Image
+                      source={require('../../assets/pets/backgrounds/feelslikechristmas.jpg')}
+                      style={styles.themePreview}
+                      resizeMode="cover"
+                    />
+                    <Text style={styles.themeName}>FEELSLIKECHRISTMAS</Text>
+                  </TouchableOpacity>
+
+                  {/* Fish Pond */}
+                  <TouchableOpacity style={styles.themeItem}>
+                    <Image
+                      source={require('../../assets/pets/backgrounds/fishpond.jpg')}
+                      style={styles.themePreview}
+                      resizeMode="cover"
+                    />
+                    <Text style={styles.themeName}>FISHPOND</Text>
+                  </TouchableOpacity>
+
+                  {/* Glowy */}
+                  <TouchableOpacity style={styles.themeItem}>
+                    <Image
+                      source={require('../../assets/pets/backgrounds/glowy.jpg')}
+                      style={styles.themePreview}
+                      resizeMode="cover"
+                    />
+                    <Text style={styles.themeName}>GLOWY</Text>
+                  </TouchableOpacity>
+
+                  {/* Infinite */}
+                  <TouchableOpacity style={styles.themeItem}>
+                    <Image
+                      source={require('../../assets/pets/backgrounds/infinite.gif')}
+                      style={styles.themePreview}
+                      resizeMode="cover"
+                    />
+                    <Text style={styles.themeName}>INFINITE</Text>
+                  </TouchableOpacity>
+
+                  {/* Magical */}
+                  <TouchableOpacity style={styles.themeItem}>
+                    <Image
+                      source={require('../../assets/pets/backgrounds/magical.jpg')}
+                      style={styles.themePreview}
+                      resizeMode="cover"
+                    />
+                    <Text style={styles.themeName}>MAGICAL</Text>
+                  </TouchableOpacity>
+
+                  {/* Minecraft */}
+                  <TouchableOpacity style={styles.themeItem}>
+                    <Image
+                      source={require('../../assets/pets/backgrounds/minecraft.jpg')}
+                      style={styles.themePreview}
+                      resizeMode="cover"
+                    />
+                    <Text style={styles.themeName}>MINECRAFT</Text>
+                  </TouchableOpacity>
+
+                  {/* Moonlight */}
+                  <TouchableOpacity style={styles.themeItem}>
+                    <Image
+                      source={require('../../assets/pets/backgrounds/moonlight.gif')}
+                      style={styles.themePreview}
+                      resizeMode="cover"
+                    />
+                    <Text style={styles.themeName}>MOONLIGHT</Text>
+                  </TouchableOpacity>
+
+                  {/* Oh So Flowery */}
+                  <TouchableOpacity style={styles.themeItem}>
+                    <Image
+                      source={require('../../assets/pets/backgrounds/ohsoflowery.jpg')}
+                      style={styles.themePreview}
+                      resizeMode="cover"
+                    />
+                    <Text style={styles.themeName}>OHSOFLOWERY</Text>
+                  </TouchableOpacity>
+
+                  {/* Peace */}
+                  <TouchableOpacity style={styles.themeItem}>
+                    <Image
+                      source={require('../../assets/pets/backgrounds/peace.jpg')}
+                      style={styles.themePreview}
+                      resizeMode="cover"
+                    />
+                    <Text style={styles.themeName}>PEACE</Text>
+                  </TouchableOpacity>
+
+                  {/* Secret Garden */}
+                  <TouchableOpacity style={styles.themeItem}>
+                    <Image
+                      source={require('../../assets/pets/backgrounds/secretgarden.jpg')}
+                      style={styles.themePreview}
+                      resizeMode="cover"
+                    />
+                    <Text style={styles.themeName}>SECRETGARDEN</Text>
+                  </TouchableOpacity>
+
+                  {/* Shop Interior */}
+                  <TouchableOpacity style={styles.themeItem}>
+                    <Image
+                      source={require('../../assets/pets/backgrounds/shopinterior.jpg')}
+                      style={styles.themePreview}
+                      resizeMode="cover"
+                    />
+                    <Text style={styles.themeName}>SHOPINTERIOR</Text>
+                  </TouchableOpacity>
+
+                  {/* Snowy Night */}
+                  <TouchableOpacity style={styles.themeItem}>
+                    <Image
+                      source={require('../../assets/pets/backgrounds/snowynight.jpg')}
+                      style={styles.themePreview}
+                      resizeMode="cover"
+                    />
+                    <Text style={styles.themeName}>SNOWYNIGHT</Text>
+                  </TouchableOpacity>
+
+                  {/* Therapeutic */}
+                  <TouchableOpacity style={styles.themeItem}>
+                    <Image
+                      source={require('../../assets/pets/backgrounds/therapeutic.jpg')}
+                      style={styles.themePreview}
+                      resizeMode="cover"
+                    />
+                    <Text style={styles.themeName}>THERAPEUTIC</Text>
+                  </TouchableOpacity>
+
+                  {/* Waterfall */}
+                  <TouchableOpacity style={styles.themeItem}>
+                    <Image
+                      source={require('../../assets/pets/backgrounds/waterfall.jpg')}
+                      style={styles.themePreview}
+                      resizeMode="cover"
+                    />
+                    <Text style={styles.themeName}>WATERFALL</Text>
+                  </TouchableOpacity>
+                        </ScrollView>
+              </Animated.View>
+            </View>
           )}
 
           {/* Try Again Popup - Shows when action is already done today */}
@@ -2054,6 +2557,347 @@ const styles = StyleSheet.create({
     textShadowColor: 'rgba(0, 0, 0, 0.9)',
     textShadowOffset: { width: 2, height: 2 },
     textShadowRadius: 4,
+  },
+  shopOverlay: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    zIndex: 1000,
+  },
+  shopBackground: {
+    width: '100%',
+    height: '100%',
+  },
+  shopContainer: {
+    flex: 1,
+    padding: 20,
+  },
+  shopCloseButton: {
+    position: 'absolute',
+    top: 20,
+    right: 20,
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: 'rgba(0, 0, 0, 0.6)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    zIndex: 1001,
+    borderWidth: 2,
+    borderColor: '#FFFFFF',
+  },
+  shopCloseButtonText: {
+    fontFamily: 'PressStart2P_400Regular',
+    fontSize: 20,
+    color: '#FFFFFF',
+  },
+  shopDialogueBox: {
+    position: 'absolute',
+    left: 20,
+    top: '32%',
+    maxWidth: 200,
+    zIndex: 1001,
+  },
+  shopDialogueContent: {
+    backgroundColor: '#FFE5B4',
+    borderWidth: 3,
+    borderColor: '#8B4513',
+    padding: 12,
+    borderRadius: 8,
+    shadowColor: '#000',
+    shadowOffset: { width: 3, height: 3 },
+    shadowOpacity: 0.8,
+    shadowRadius: 2,
+    elevation: 5,
+  },
+  shopDialogueTail: {
+    position: 'absolute',
+    right: -10,
+    top: 20,
+    width: 0,
+    height: 0,
+    borderTopWidth: 8,
+    borderTopColor: 'transparent',
+    borderBottomWidth: 8,
+    borderBottomColor: 'transparent',
+    borderLeftWidth: 15,
+    borderLeftColor: '#FFE5B4',
+  },
+  shopDialogueText: {
+    fontFamily: 'PressStart2P_400Regular',
+    fontSize: 10,
+    color: '#5C4033',
+    textAlign: 'left',
+    lineHeight: 16,
+  },
+  treasureBoxDialogueBox: {
+    position: 'absolute',
+    left: '50%',
+    marginLeft: -100,
+    bottom: 260,
+    maxWidth: 200,
+    zIndex: 1001,
+  },
+  treasureBoxDialogueTail: {
+    position: 'absolute',
+    bottom: -10,
+    left: '50%',
+    marginLeft: -6,
+    width: 0,
+    height: 0,
+    borderLeftWidth: 6,
+    borderLeftColor: 'transparent',
+    borderRightWidth: 6,
+    borderRightColor: 'transparent',
+    borderTopWidth: 12,
+    borderTopColor: '#FFE5B4',
+  },
+  shopkeeperContainer: {
+    position: 'absolute',
+    right: 30,
+    top: '35%',
+    width: 180,
+    height: 220,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  shopkeeperImage: {
+    width: '100%',
+    height: '100%',
+  },
+  shopBoxContainer: {
+    position: 'absolute',
+    bottom: 80,
+    left: '50%',
+    marginLeft: -100,
+    width: 200,
+    height: 200,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  shopBoxImage: {
+    width: '100%',
+    height: '100%',
+  },
+  shopModalOverlay: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: 'rgba(0, 0, 0, 0.7)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    zIndex: 1002,
+  },
+  shopModalContent: {
+    width: '90%',
+    maxWidth: 400,
+    backgroundColor: 'rgba(255, 229, 180, 0.9)',
+    borderWidth: 4,
+    borderColor: '#8B4513',
+    borderRadius: 12,
+    padding: 20,
+    paddingTop: 40,
+    position: 'relative',
+  },
+  shopModalCloseButton: {
+    position: 'absolute',
+    top: 8,
+    right: 8,
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: 'rgba(139, 69, 19, 0.9)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    zIndex: 1003,
+    borderWidth: 2,
+    borderColor: '#FFFFFF',
+  },
+  shopModalCloseButtonText: {
+    fontFamily: 'PressStart2P_400Regular',
+    fontSize: 16,
+    color: '#FFFFFF',
+  },
+  shopCategoriesGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    justifyContent: 'space-between',
+    marginTop: 20,
+  },
+  shopCategoryButton: {
+    width: '47%',
+    backgroundColor: 'rgba(0, 0, 0, 0.7)',
+    borderWidth: 3,
+    borderColor: '#FFFFFF',
+    borderRadius: 4,
+    padding: 15,
+    alignItems: 'center',
+    justifyContent: 'center',
+    minHeight: 140,
+    marginBottom: 15,
+  },
+  shopCategoryButtonModal: {
+    width: '47%',
+    backgroundColor: 'rgba(255, 229, 180, 0.8)',
+    borderWidth: 3,
+    borderColor: '#8B4513',
+    borderRadius: 8,
+    padding: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+    minHeight: 120,
+    marginBottom: 15,
+  },
+  shopCategoryIcon: {
+    width: 50,
+    height: 50,
+    marginBottom: 10,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  shopCategoryText: {
+    fontFamily: 'PressStart2P_400Regular',
+    fontSize: 10,
+    color: '#FFFFFF',
+    marginBottom: 8,
+    textAlign: 'center',
+  },
+  shopCategoryCost: {
+    fontFamily: 'PressStart2P_400Regular',
+    fontSize: 8,
+    color: '#FFFFFF',
+    textAlign: 'center',
+  },
+  shopCategoryTextModal: {
+    fontFamily: 'PressStart2P_400Regular',
+    fontSize: 8,
+    color: '#5C4033',
+    marginTop: 8,
+    textAlign: 'center',
+  },
+  themesModalContent: {
+    width: '85%',
+    maxWidth: 350,
+    height: '75%',
+    backgroundColor: 'rgba(255, 229, 180, 0.95)',
+    borderWidth: 4,
+    borderColor: '#8B4513',
+    borderRadius: 12,
+    padding: 20,
+    paddingTop: 40,
+    position: 'relative',
+    zIndex: 2000,
+  },
+  themesScrollView: {
+    flex: 1,
+  },
+  themesScrollContent: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    justifyContent: 'space-between',
+    paddingBottom: 10,
+  },
+  themeItem: {
+    width: '48%',
+    backgroundColor: 'rgba(255, 229, 180, 0.6)',
+    borderWidth: 3,
+    borderColor: '#8B4513',
+    borderRadius: 8,
+    padding: 8,
+    alignItems: 'center',
+    marginBottom: 12,
+  },
+  themePreview: {
+    width: '100%',
+    height: 100,
+    borderRadius: 4,
+    marginBottom: 6,
+  },
+  themeName: {
+    fontFamily: 'PressStart2P_400Regular',
+    fontSize: 7,
+    color: '#5C4033',
+    textAlign: 'center',
+  },
+  shopCategoryImage: {
+    width: 40,
+    height: 40,
+  },
+  // Palette Icon
+  paletteIcon: {
+    width: 40,
+    height: 30,
+    backgroundColor: '#8B4513',
+    borderRadius: 2,
+    position: 'relative',
+  },
+  paletteColor: {
+    width: 8,
+    height: 8,
+    position: 'absolute',
+    borderRadius: 1,
+  },
+  // Paw Icon
+  pawIcon: {
+    width: 24,
+    height: 24,
+    position: 'relative',
+  },
+  pawPad: {
+    width: 6,
+    height: 6,
+    backgroundColor: '#808080',
+    position: 'absolute',
+    borderRadius: 3,
+  },
+  // Shield Icon
+  shieldIcon: {
+    width: 30,
+    height: 35,
+    position: 'relative',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  shieldBody: {
+    width: 30,
+    height: 35,
+    backgroundColor: '#DC143C',
+    borderRadius: 15,
+    borderWidth: 2,
+    borderColor: '#FFFFFF',
+  },
+  shieldEmblem: {
+    position: 'absolute',
+    width: 12,
+    height: 12,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 2,
+  },
+  // Gift Box Icon
+  giftBoxIcon: {
+    width: 35,
+    height: 35,
+    position: 'relative',
+  },
+  giftBoxBody: {
+    width: 35,
+    height: 35,
+    backgroundColor: '#FFD700',
+    borderWidth: 2,
+    borderColor: '#FFFFFF',
+    borderRadius: 2,
+  },
+  giftBoxRibbon: {
+    position: 'absolute',
+    width: 4,
+    height: 35,
+    backgroundColor: '#DC143C',
+    left: '50%',
+    marginLeft: -2,
   },
   gameOverlay: {
     position: 'absolute',
