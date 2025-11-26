@@ -483,23 +483,41 @@ export default function LauncherScreen() {
 
             {/* Card 2: Task Summary (Bottom 40%) */}
             <View style={[styles.taskCard, { backgroundColor: theme.gridBoxBackground, borderColor: (ALL_THEMES[petsTheme] || PETS_THEMES[petsTheme] || ALL_THEMES['serene']).color }]}>
-              <Text style={[styles.cardTitle, { color: theme.iconText }]}>TODAY'S TASKS</Text>
-              
-              <Text style={[styles.taskCount, { color: theme.iconText }]}>
-                {todayTasks.length} task{todayTasks.length !== 1 ? 's' : ''} due today
-              </Text>
-
-              {overdueTasks.length > 0 && (
-                <View style={styles.overdueWarning}>
-                  <Text style={styles.overdueText}>⚠️ {overdueTasks.length} overdue!</Text>
+              {/* Decorative Header */}
+              <View style={styles.taskCardHeader}>
+                <View style={[styles.taskIconContainer, { backgroundColor: (ALL_THEMES[petsTheme] || PETS_THEMES[petsTheme] || ALL_THEMES['serene']).color }]}>
+                  <Text style={styles.taskIconText}>📋</Text>
                 </View>
-              )}
+                <Text style={[styles.cardTitle, { color: theme.iconText }]}>TASKS</Text>
+              </View>
+              
+              {/* Stats Row */}
+              <View style={styles.taskStatsRow}>
+                {/* Today's Tasks Stat */}
+                <View style={[styles.taskStatBox, { backgroundColor: 'rgba(76, 175, 80, 0.2)', borderColor: '#4CAF50' }]}>
+                  <Text style={styles.taskStatNumber}>{todayTasks.length}</Text>
+                  <Text style={[styles.taskStatLabel, { color: '#4CAF50' }]}>TODAY</Text>
+                </View>
+                
+                {/* Overdue Stat */}
+                <View style={[styles.taskStatBox, { backgroundColor: overdueTasks.length > 0 ? 'rgba(255, 82, 82, 0.2)' : 'rgba(158, 158, 158, 0.2)', borderColor: overdueTasks.length > 0 ? '#FF5252' : '#9E9E9E' }]}>
+                  <Text style={[styles.taskStatNumber, { color: overdueTasks.length > 0 ? '#FF5252' : '#9E9E9E' }]}>{overdueTasks.length}</Text>
+                  <Text style={[styles.taskStatLabel, { color: overdueTasks.length > 0 ? '#FF5252' : '#9E9E9E' }]}>OVERDUE</Text>
+                </View>
+                
+                {/* Total Tasks Stat */}
+                <View style={[styles.taskStatBox, { backgroundColor: 'rgba(100, 181, 246, 0.2)', borderColor: '#64B5F6' }]}>
+                  <Text style={[styles.taskStatNumber, { color: '#64B5F6' }]}>{tasks.filter(t => !t.completed).length}</Text>
+                  <Text style={[styles.taskStatLabel, { color: '#64B5F6' }]}>TOTAL</Text>
+                </View>
+              </View>
 
+              {/* Action Button */}
               <TouchableOpacity
                 onPress={handleViewTasks}
-                style={[styles.viewTasksButton, { backgroundColor: theme.modalBackground, borderColor: theme.modalBorder }]}
+                style={[styles.viewTasksButton, { backgroundColor: (ALL_THEMES[petsTheme] || PETS_THEMES[petsTheme] || ALL_THEMES['serene']).color }]}
               >
-                <Text style={[styles.viewTasksButtonText, { color: theme.modalText }]}>VIEW TASKS</Text>
+                <Text style={styles.viewTasksButtonText}>📝 VIEW TASKS</Text>
               </TouchableOpacity>
             </View>
           </View>
@@ -584,15 +602,53 @@ const styles = StyleSheet.create({
   taskCard: {
     flex: 0.4,
     borderWidth: 3,
-    borderRadius: 8,
-    padding: 16,
+    borderRadius: 12,
+    padding: 12,
+    justifyContent: 'space-between',
+  },
+  taskCardHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 8,
+  },
+  taskIconContainer: {
+    width: 28,
+    height: 28,
+    borderRadius: 6,
     alignItems: 'center',
     justifyContent: 'center',
+    marginRight: 8,
+  },
+  taskIconText: {
+    fontSize: 14,
   },
   cardTitle: {
     fontFamily: 'PressStart2P_400Regular',
-    fontSize: 10,
-    marginBottom: 16,
+    fontSize: 11,
+  },
+  taskStatsRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginBottom: 10,
+    gap: 6,
+  },
+  taskStatBox: {
+    flex: 1,
+    borderWidth: 2,
+    borderRadius: 8,
+    paddingVertical: 8,
+    paddingHorizontal: 4,
+    alignItems: 'center',
+  },
+  taskStatNumber: {
+    fontFamily: 'PressStart2P_400Regular',
+    fontSize: 16,
+    color: '#4CAF50',
+    marginBottom: 2,
+  },
+  taskStatLabel: {
+    fontFamily: 'PressStart2P_400Regular',
+    fontSize: 6,
   },
   petSpriteContainer: {
     height: 80,
@@ -676,29 +732,23 @@ const styles = StyleSheet.create({
     fontFamily: 'PressStart2P_400Regular',
     fontSize: 12,
   },
-  taskCount: {
-    fontFamily: 'PressStart2P_400Regular',
-    fontSize: 10,
-    marginBottom: 8,
-  },
-  overdueWarning: {
-    marginBottom: 12,
-  },
-  overdueText: {
-    fontFamily: 'PressStart2P_400Regular',
-    fontSize: 10,
-    color: '#FF0000',
-  },
   viewTasksButton: {
-    paddingHorizontal: 24,
-    paddingVertical: 12,
-    borderRadius: 4,
-    borderWidth: 2,
-    minWidth: 150,
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    borderRadius: 8,
     alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.3,
+    shadowRadius: 3,
+    elevation: 4,
   },
   viewTasksButtonText: {
     fontFamily: 'PressStart2P_400Regular',
-    fontSize: 10,
+    fontSize: 9,
+    color: '#FFFFFF',
+    textShadowColor: 'rgba(0, 0, 0, 0.5)',
+    textShadowOffset: { width: 1, height: 1 },
+    textShadowRadius: 2,
   },
 });

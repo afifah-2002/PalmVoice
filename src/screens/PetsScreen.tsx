@@ -7,11 +7,11 @@ import { FavoriteButtons } from '../components/FavoriteButtons';
 import { PixelKeyboard } from '../components/PixelKeyboard';
 import { PALM_THEMES, PalmTheme } from '../constants/palmThemes';
 import { useTheme } from '../contexts/ThemeContext';
-import { loadCoins, loadHealthPotions, loadPet, loadPetsTheme, loadPurchasedPets, loadPurchasedThemes, loadRevivalTokens, loadTasks, saveCoins, saveHealthPotions, savePet, savePetsTheme, savePurchasedPets, savePurchasedThemes, saveRevivalTokens } from '../services/storage';
+import { deletePet, loadCoins, loadHealthPotions, loadPet, loadPetsTheme, loadPurchasedPets, loadPurchasedThemes, loadRevivalTokens, loadTasks, saveCoins, saveHealthPotions, savePet, savePetsTheme, savePurchasedPets, savePurchasedThemes, saveRevivalTokens } from '../services/storage';
 import { Task } from '../types/Task';
 
 type PetsTheme = 'serene' | 'purple-skies' | 'orange-kiss' | 'cherryblossom' | 'feelslike2002' | 'feelslikechristmas' | 'fishpond' | 'glowy' | 'magical' | 'minecraft' | 'ohsoflowery' | 'peace' | 'secretgarden' | 'snowynight' | 'therapeutic' | 'waterfall' | 'anime' | 'autumn' | 'infinite' | 'moonlight';
-type PetType = 'none' | 'cat' | 'puppy' | 'panda' | 'penguin';
+type PetType = 'none' | 'cat' | 'puppy' | 'panda' | 'koala';
 type PetStatus = 'happy' | 'hungry' | 'sad' | 'dead' | 'sleeping';
 
 interface Pet {
@@ -177,15 +177,15 @@ const SHOP_PETS: Record<string, { name: string; icon: any; price: number; emoji:
   },
   'panda': {
     name: 'Panda',
-    icon: require('../../assets/pets/cat/catsit2.png'), // Placeholder until panda assets exist
+    icon: require('../../assets/pets/panda/pandasit1.png'),
     price: 50,
     emoji: '🐼',
   },
-  'penguin': {
-    name: 'Penguin',
-    icon: require('../../assets/pets/cat/catsit2.png'), // Placeholder until penguin assets exist
+  'koala': {
+    name: 'Koala',
+    icon: require('../../assets/pets/koala/koalasit1.png'),
     price: 50,
-    emoji: '🐧',
+    emoji: '🐨',
   },
 };
 
@@ -262,6 +262,8 @@ export function PetsScreen() {
   const [purchasedPets, setPurchasedPets] = useState<string[]>(['cat']); // Cat is free by default
   const [revivalTokens, setRevivalTokens] = useState(0); // Revival insurance tokens
   const [healthPotions, setHealthPotions] = useState(0); // Health potions
+  const [showDeletePetConfirm, setShowDeletePetConfirm] = useState(false);
+  const [petToDelete, setPetToDelete] = useState<PetType | null>(null);
   const [treasureBoxMessage, setTreasureBoxMessage] = useState('click me!');
   const treasureBoxOpacity = useRef(new Animated.Value(0)).current;
   const treasureBoxScale = useRef(new Animated.Value(0.8)).current;
@@ -369,6 +371,57 @@ export function PetsScreen() {
     require('../../assets/pets/puppy/puppyplay1.png'),
     require('../../assets/pets/puppy/puppyplay2.jpg'),
     require('../../assets/pets/puppy/puppyplay3.jpg'),
+  ];
+
+  // Panda animation frames
+  const pandaSitFrames = [
+    require('../../assets/pets/panda/pandasit1.png'),
+    require('../../assets/pets/panda/pandasit2.png'),
+  ];
+  const pandaEatFrames = [
+    require('../../assets/pets/panda/pandaeat1.png'),
+    require('../../assets/pets/panda/pandaeat2.png'),
+  ];
+  const pandaCryFrames = [
+    require('../../assets/pets/panda/pandacry1.png'),
+    require('../../assets/pets/panda/pandacry2.png'),
+    require('../../assets/pets/panda/pandacry3.png'),
+  ];
+  const pandaPetFrames = [
+    require('../../assets/pets/panda/pandapet1.png'),
+    require('../../assets/pets/panda/pandapet2.png'),
+    require('../../assets/pets/panda/pandapet3.png'),
+  ];
+  const pandaPlayFrames = [
+    require('../../assets/pets/panda/pandaplay1.png'),
+    require('../../assets/pets/panda/pandaplay2.jpg'),
+    require('../../assets/pets/panda/pandaplay3.png'),
+  ];
+
+  // Koala animation frames
+  const koalaSitFrames = [
+    require('../../assets/pets/koala/koalasit1.png'),
+    require('../../assets/pets/koala/koalasit2.png'),
+  ];
+  const koalaEatFrames = [
+    require('../../assets/pets/koala/koalaeat1.png'),
+    require('../../assets/pets/koala/koalaeat2.png'),
+    require('../../assets/pets/koala/koalaeat3.png'),
+  ];
+  const koalaCryFrames = [
+    require('../../assets/pets/koala/koalacry1.png'),
+    require('../../assets/pets/koala/koalacry2.png'),
+    require('../../assets/pets/koala/koalacry3.png'),
+  ];
+  const koalaPetFrames = [
+    require('../../assets/pets/koala/koalapet1.png'),
+    require('../../assets/pets/koala/koalapet2.jpg'),
+    require('../../assets/pets/koala/koalapet3.jpg'),
+  ];
+  const koalaPlayFrames = [
+    require('../../assets/pets/koala/koalaplay1.png'),
+    require('../../assets/pets/koala/koalaplay2.png'),
+    require('../../assets/pets/koala/koalaplay3.png'),
   ];
 
   // Load saved pets theme and pet data on mount
@@ -590,6 +643,10 @@ export function PetsScreen() {
     const interval = setInterval(() => {
       if (pet?.type === 'puppy') {
         setCurrentCatFrame((prev) => (prev + 1) % puppySitFrames.length);
+      } else if (pet?.type === 'panda') {
+        setCurrentCatFrame((prev) => (prev + 1) % pandaSitFrames.length);
+      } else if (pet?.type === 'koala') {
+        setCurrentCatFrame((prev) => (prev + 1) % koalaSitFrames.length);
       } else {
         setCurrentCatFrame((prev) => (prev + 1) % catSitFrames.length);
       }
@@ -673,6 +730,28 @@ export function PetsScreen() {
         duration = 9000; // 9 seconds
       } else {
         frames = puppyPlayFrames;
+        duration = 9000; // 9 seconds
+      }
+    } else if (pet?.type === 'panda') {
+      if (activeAnimation === 'feed') {
+        frames = pandaEatFrames;
+        duration = 9000; // 9 seconds
+      } else if (activeAnimation === 'pet') {
+        frames = pandaPetFrames;
+        duration = 9000; // 9 seconds
+      } else {
+        frames = pandaPlayFrames;
+        duration = 9000; // 9 seconds
+      }
+    } else if (pet?.type === 'koala') {
+      if (activeAnimation === 'feed') {
+        frames = koalaEatFrames;
+        duration = 9000; // 9 seconds
+      } else if (activeAnimation === 'pet') {
+        frames = koalaPetFrames;
+        duration = 9000; // 9 seconds
+      } else {
+        frames = koalaPlayFrames;
         duration = 9000; // 9 seconds
       }
     } else {
@@ -1036,7 +1115,13 @@ export function PetsScreen() {
     return tasks.filter(task => task.completed).length;
   };
 
-  const handlePetSelect = (petType: PetType) => {
+  const handlePetSelect = async (petType: PetType) => {
+    // Reload global items to ensure they persist across pets
+    const tokens = await loadRevivalTokens();
+    const potions = await loadHealthPotions();
+    setRevivalTokens(tokens);
+    setHealthPotions(potions);
+    
     if (petType === 'none') {
       setPet(null);
       savePet(null); // Clear from storage (no type needed for clearing)
@@ -1069,6 +1154,36 @@ export function PetsScreen() {
       }, 3000);
       setShowPetDropdown(false);
     }
+  };
+
+  // Handle delete pet button click
+  const handleDeletePetClick = (petType: PetType) => {
+    setPetToDelete(petType);
+    setShowDeletePetConfirm(true);
+    setShowPetDropdown(false);
+  };
+
+  // Confirm and delete pet
+  const confirmDeletePet = async () => {
+    if (!petToDelete) return;
+    
+    // Delete from storage
+    await deletePet(petToDelete);
+    
+    // If the deleted pet was the current pet, clear it
+    if (pet?.type === petToDelete) {
+      setPet(null);
+    }
+    
+    // Close confirmation modal
+    setShowDeletePetConfirm(false);
+    setPetToDelete(null);
+  };
+
+  // Cancel delete
+  const cancelDeletePet = () => {
+    setShowDeletePetConfirm(false);
+    setPetToDelete(null);
   };
 
   const handleNameSubmit = () => {
@@ -1251,7 +1366,7 @@ export function PetsScreen() {
     // Revive the pet - reset createdAt to now to start fresh 24-hour cycle
     // Reset action timestamps to 0 so actions can be done again
     const revivedPet = {
-      ...pet,
+        ...pet,
       health: 5,
       lastFed: 0, // Reset to 0 so action can be done
       lastPet: 0, // Reset to 0 so action can be done
@@ -1485,49 +1600,82 @@ export function PetsScreen() {
                   >
                     <Text style={[styles.dropdownOptionText, { color: (ALL_THEMES[petsTheme] || PETS_THEMES[petsTheme] || ALL_THEMES['serene']).color }]}>None</Text>
                   </TouchableOpacity>
-                  <TouchableOpacity
-                    onPress={() => handlePetSelect('cat')}
-                    style={[
-                      styles.dropdownOption, 
-                      { 
-                        backgroundColor: pet?.type === 'cat' ? 'rgba(255, 255, 255, 0.1)' : 'transparent',
-                        borderBottomColor: 'rgba(255, 255, 255, 0.2)' 
-                      }
-                    ]}
-                  >
-                    <Text style={[styles.dropdownOptionText, { color: (ALL_THEMES[petsTheme] || PETS_THEMES[petsTheme] || ALL_THEMES['serene']).color }]}>🐱 Cat</Text>
-                  </TouchableOpacity>
-                  <TouchableOpacity
-                    onPress={() => handlePetSelect('puppy')}
-                    style={[
-                      styles.dropdownOption, 
-                      { 
-                        backgroundColor: pet?.type === 'puppy' ? 'rgba(255, 255, 255, 0.1)' : 'transparent',
-                        borderBottomColor: 'rgba(255, 255, 255, 0.2)',
-                        opacity: purchasedPets.includes('puppy') ? 1 : 0.6
-                      }
-                    ]}
-                  >
-                    <Text style={[styles.dropdownOptionText, { color: purchasedPets.includes('puppy') ? (ALL_THEMES[petsTheme] || PETS_THEMES[petsTheme] || ALL_THEMES['serene']).color : '#888888' }]}>
-                      🐶 Puppy {!purchasedPets.includes('puppy') && '🔒'}
-                    </Text>
-                  </TouchableOpacity>
-                  <TouchableOpacity
-                    onPress={() => handlePetSelect('panda')}
-                    style={[styles.dropdownOption, { borderBottomColor: 'rgba(255, 255, 255, 0.2)', opacity: purchasedPets.includes('panda') ? 1 : 0.6 }]}
-                  >
-                    <Text style={[styles.dropdownOptionText, { color: purchasedPets.includes('panda') ? (ALL_THEMES[petsTheme] || PETS_THEMES[petsTheme] || ALL_THEMES['serene']).color : '#888888' }]}>
-                      🐼 Panda {!purchasedPets.includes('panda') && '🔒'}
-                    </Text>
-                  </TouchableOpacity>
-                  <TouchableOpacity
-                    onPress={() => handlePetSelect('penguin')}
-                    style={[styles.dropdownOption, { opacity: purchasedPets.includes('penguin') ? 1 : 0.6 }]}
-                  >
-                    <Text style={[styles.dropdownOptionText, { color: purchasedPets.includes('penguin') ? (ALL_THEMES[petsTheme] || PETS_THEMES[petsTheme] || ALL_THEMES['serene']).color : '#888888' }]}>
-                      🐧 Penguin {!purchasedPets.includes('penguin') && '🔒'}
-                    </Text>
-                  </TouchableOpacity>
+                  
+                  {/* Cat - always owned, can delete if created */}
+                  <View style={[styles.dropdownOptionRow, { backgroundColor: pet?.type === 'cat' ? 'rgba(255, 255, 255, 0.1)' : 'transparent', borderBottomColor: 'rgba(255, 255, 255, 0.2)', borderBottomWidth: 1 }]}>
+                    <TouchableOpacity
+                      onPress={() => handlePetSelect('cat')}
+                      style={styles.dropdownOptionContent}
+                    >
+                      <Text style={[styles.dropdownOptionText, { color: (ALL_THEMES[petsTheme] || PETS_THEMES[petsTheme] || ALL_THEMES['serene']).color }]}>🐱 Cat</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                      onPress={() => handleDeletePetClick('cat')}
+                      style={styles.deleteButton}
+                    >
+                      <Text style={styles.deleteButtonText}>🗑️</Text>
+                    </TouchableOpacity>
+                  </View>
+                  
+                  {/* Puppy */}
+                  <View style={[styles.dropdownOptionRow, { backgroundColor: pet?.type === 'puppy' ? 'rgba(255, 255, 255, 0.1)' : 'transparent', borderBottomColor: 'rgba(255, 255, 255, 0.2)', borderBottomWidth: 1, opacity: purchasedPets.includes('puppy') ? 1 : 0.6 }]}>
+                    <TouchableOpacity
+                      onPress={() => handlePetSelect('puppy')}
+                      style={styles.dropdownOptionContent}
+                    >
+                      <Text style={[styles.dropdownOptionText, { color: purchasedPets.includes('puppy') ? (ALL_THEMES[petsTheme] || PETS_THEMES[petsTheme] || ALL_THEMES['serene']).color : '#888888' }]}>
+                        🐶 Puppy {!purchasedPets.includes('puppy') && '🔒'}
+                      </Text>
+                    </TouchableOpacity>
+                    {purchasedPets.includes('puppy') && (
+                      <TouchableOpacity
+                        onPress={() => handleDeletePetClick('puppy')}
+                        style={styles.deleteButton}
+                      >
+                        <Text style={styles.deleteButtonText}>🗑️</Text>
+                      </TouchableOpacity>
+                    )}
+                  </View>
+                  
+                  {/* Panda */}
+                  <View style={[styles.dropdownOptionRow, { borderBottomColor: 'rgba(255, 255, 255, 0.2)', borderBottomWidth: 1, opacity: purchasedPets.includes('panda') ? 1 : 0.6 }]}>
+                    <TouchableOpacity
+                      onPress={() => handlePetSelect('panda')}
+                      style={styles.dropdownOptionContent}
+                    >
+                      <Text style={[styles.dropdownOptionText, { color: purchasedPets.includes('panda') ? (ALL_THEMES[petsTheme] || PETS_THEMES[petsTheme] || ALL_THEMES['serene']).color : '#888888' }]}>
+                        🐼 Panda {!purchasedPets.includes('panda') && '🔒'}
+                      </Text>
+                    </TouchableOpacity>
+                    {purchasedPets.includes('panda') && (
+                      <TouchableOpacity
+                        onPress={() => handleDeletePetClick('panda')}
+                        style={styles.deleteButton}
+                      >
+                        <Text style={styles.deleteButtonText}>🗑️</Text>
+                      </TouchableOpacity>
+                    )}
+                  </View>
+                  
+                  {/* Koala */}
+                  <View style={[styles.dropdownOptionRow, { opacity: purchasedPets.includes('koala') ? 1 : 0.6 }]}>
+                    <TouchableOpacity
+                      onPress={() => handlePetSelect('koala')}
+                      style={styles.dropdownOptionContent}
+                    >
+                      <Text style={[styles.dropdownOptionText, { color: purchasedPets.includes('koala') ? (ALL_THEMES[petsTheme] || PETS_THEMES[petsTheme] || ALL_THEMES['serene']).color : '#888888' }]}>
+                        🐨 Koala {!purchasedPets.includes('koala') && '🔒'}
+                      </Text>
+                    </TouchableOpacity>
+                    {purchasedPets.includes('koala') && (
+                      <TouchableOpacity
+                        onPress={() => handleDeletePetClick('koala')}
+                        style={styles.deleteButton}
+                      >
+                        <Text style={styles.deleteButtonText}>🗑️</Text>
+                      </TouchableOpacity>
+                    )}
+                  </View>
                 </View>
               )}
           </View>
@@ -1680,6 +1828,26 @@ export function PetsScreen() {
                         : pet.health === 1
                         ? puppyCryFrames[sadAnimationFrame % puppyCryFrames.length]
                         : puppySitFrames[currentCatFrame % puppySitFrames.length]
+                      : pet.type === 'panda'
+                      ? activeAnimation === 'feed'
+                        ? pandaEatFrames[animationFrame % pandaEatFrames.length]
+                        : activeAnimation === 'pet'
+                        ? pandaPetFrames[animationFrame % pandaPetFrames.length]
+                        : activeAnimation === 'play'
+                        ? pandaPlayFrames[animationFrame % pandaPlayFrames.length]
+                        : pet.health === 1
+                        ? pandaCryFrames[sadAnimationFrame % pandaCryFrames.length]
+                        : pandaSitFrames[currentCatFrame % pandaSitFrames.length]
+                      : pet.type === 'koala'
+                      ? activeAnimation === 'feed'
+                        ? koalaEatFrames[animationFrame % koalaEatFrames.length]
+                        : activeAnimation === 'pet'
+                        ? koalaPetFrames[animationFrame % koalaPetFrames.length]
+                        : activeAnimation === 'play'
+                        ? koalaPlayFrames[animationFrame % koalaPlayFrames.length]
+                        : pet.health === 1
+                        ? koalaCryFrames[sadAnimationFrame % koalaCryFrames.length]
+                        : koalaSitFrames[currentCatFrame % koalaSitFrames.length]
                       : activeAnimation === 'feed' 
                       ? catBowlFrames[animationFrame]
                       : activeAnimation === 'pet'
@@ -1830,7 +1998,14 @@ export function PetsScreen() {
           {/* Bottom Bar - Coins, Shop, Streak */}
           <View style={styles.bottomBar}>
             <TouchableOpacity
-              onPress={() => setShowCoinsPopup(true)}
+              onPress={async () => {
+                // Reload items from storage to ensure latest values
+                const tokens = await loadRevivalTokens();
+                const potions = await loadHealthPotions();
+                setRevivalTokens(tokens);
+                setHealthPotions(potions);
+                setShowCoinsPopup(true);
+              }}
               style={styles.bottomBarItem}
               activeOpacity={0.8}
             >
@@ -2040,7 +2215,7 @@ export function PetsScreen() {
                 >
                   <Text style={styles.reviveCloseButtonText}>✕</Text>
                 </TouchableOpacity>
-                <Text style={[styles.coinsText, { color: '#FFFFFF' }]}>
+                <Text style={[styles.coinsText, styles.coinsPopupDarkText]}>
                   {coins} COINS
                 </Text>
                 
@@ -2053,7 +2228,7 @@ export function PetsScreen() {
                       style={styles.coinsItemIcon}
                       resizeMode="contain"
                     />
-                    <Text style={[styles.coinsItemText, { color: '#FFFFFF' }]}>
+                    <Text style={[styles.coinsItemText, styles.coinsPopupDarkText]}>
                       REVIVAL: {revivalTokens}
                     </Text>
                   </View>
@@ -2065,7 +2240,7 @@ export function PetsScreen() {
                       style={styles.coinsItemIcon}
                       resizeMode="contain"
                     />
-                    <Text style={[styles.coinsItemText, { color: '#FFFFFF' }]}>
+                    <Text style={[styles.coinsItemText, styles.coinsPopupDarkText]}>
                       POTIONS: {healthPotions}
                     </Text>
                     {healthPotions > 0 && pet && pet.health > 0 && pet.health < 5 && (
@@ -2091,7 +2266,7 @@ export function PetsScreen() {
                   style={[styles.playToWinButton, { borderColor: (ALL_THEMES[petsTheme] || PETS_THEMES[petsTheme] || ALL_THEMES['serene']).color }]}
                   activeOpacity={0.8}
                 >
-                  <Text style={[styles.playToWinButtonText, { color: '#FFFFFF' }]}>
+                  <Text style={[styles.playToWinButtonText, styles.coinsPopupDarkText]}>
                     PLAY TO WIN MORE!
                   </Text>
                 </TouchableOpacity>
@@ -2384,7 +2559,13 @@ export function PetsScreen() {
 
                           {/* ITEMS */}
                           <TouchableOpacity 
-                            onPress={() => {
+                            onPress={async () => {
+                              // Reload items from storage to ensure latest values
+                              const tokens = await loadRevivalTokens();
+                              const potions = await loadHealthPotions();
+                              setRevivalTokens(tokens);
+                              setHealthPotions(potions);
+                              
                               setShowShopModal(false);
                               setTimeout(() => {
                                 setShowItemsModal(true);
@@ -2540,40 +2721,44 @@ export function PetsScreen() {
                       <View
                         key={petKey}
                         style={[
-                          styles.themeItem,
-                          isPurchased && styles.themeItemPurchased,
-                          isEquipped && styles.themeItemEquipped
+                          styles.petShopCard,
+                          isPurchased && styles.petShopCardPurchased,
+                          isEquipped && styles.petShopCardEquipped
                         ]}
                       >
-                        <View style={styles.petIconContainer}>
-                          <Text style={styles.petEmoji}>{petData.emoji}</Text>
+                        {/* Pet Image */}
+                        <View style={styles.petShopImageContainer}>
                           <Image
                             source={petData.icon}
-                            style={styles.petShopIcon}
+                            style={styles.petShopImage}
                             resizeMode="contain"
                           />
                         </View>
-                        <Text style={styles.themeName}>{petData.name.toUpperCase()}</Text>
+                        
+                        {/* Pet Name */}
+                        <Text style={styles.petShopName}>{petData.name.toUpperCase()}</Text>
                         
                         {isPurchased ? (
-                          <View style={styles.purchasedContainer}>
-                            <Text style={styles.ownedText}>OWNED</Text>
+                          <View style={styles.petShopStatusContainer}>
+                            <Text style={styles.petShopOwnedText}>✓ OWNED</Text>
                             {isEquipped && (
-                              <Text style={styles.equippedBadge}>EQUIPPED</Text>
+                              <View style={styles.petShopEquippedBadge}>
+                                <Text style={styles.petShopEquippedText}>ACTIVE</Text>
+                              </View>
                             )}
                           </View>
                         ) : (
                           <TouchableOpacity
-                            style={styles.themePriceContainer}
+                            style={styles.petShopBuyButton}
                             onPress={() => handlePetPurchase(petKey)}
                             activeOpacity={0.8}
                           >
                             <Image
                               source={require('../../assets/rewards/coins.png')}
-                              style={styles.coinIcon}
+                              style={styles.petShopCoinIcon}
                               resizeMode="contain"
                             />
-                            <Text style={petData.price >= 50 ? styles.exclusiveThemePrice : styles.themePrice}>
+                            <Text style={styles.petShopPrice}>
                               {petData.price === 0 ? 'FREE' : petData.price}
                             </Text>
                           </TouchableOpacity>
@@ -2679,6 +2864,37 @@ export function PetsScreen() {
             <View style={styles.purchaseErrorOverlay}>
               <View style={styles.purchaseErrorPopup}>
                 <Text style={styles.purchaseErrorText}>{purchaseErrorMessage}</Text>
+              </View>
+            </View>
+          )}
+
+          {/* Delete Pet Confirmation Popup */}
+          {showDeletePetConfirm && petToDelete && (
+            <View style={styles.deleteConfirmOverlay}>
+              <View style={styles.deleteConfirmPopup}>
+                <Text style={styles.deleteConfirmTitle}>DELETE PET?</Text>
+                <Text style={styles.deleteConfirmText}>
+                  This will permanently delete your {petToDelete.toUpperCase()}'s name, streak, and all progress.
+                </Text>
+                <Text style={styles.deleteConfirmWarning}>
+                  THIS CANNOT BE UNDONE!
+                </Text>
+                <View style={styles.deleteConfirmButtons}>
+                  <TouchableOpacity
+                    onPress={cancelDeletePet}
+                    style={styles.deleteConfirmCancelButton}
+                    activeOpacity={0.8}
+                  >
+                    <Text style={styles.deleteConfirmCancelText}>CANCEL</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    onPress={confirmDeletePet}
+                    style={styles.deleteConfirmDeleteButton}
+                    activeOpacity={0.8}
+                  >
+                    <Text style={styles.deleteConfirmDeleteText}>DELETE</Text>
+                  </TouchableOpacity>
+                </View>
               </View>
             </View>
           )}
@@ -2920,7 +3136,7 @@ const styles = StyleSheet.create({
   },
   petDisplayContainer: {
     position: 'absolute',
-    bottom: '33%', // Bottom 2/3 of screen
+    bottom: '28%', // Bottom 2/3 of screen, lowered for spacing
     left: 0,
     right: 0,
     alignItems: 'center',
@@ -2930,14 +3146,15 @@ const styles = StyleSheet.create({
     fontFamily: 'PressStart2P_400Regular',
     fontSize: 12,
     color: '#FFFFFF',
-    marginBottom: 12,
+    marginBottom: 8,
+    marginTop: 16,
     textShadowColor: 'rgba(0, 0, 0, 0.9)',
     textShadowOffset: { width: 2, height: 2 },
     textShadowRadius: 4,
   },
   catSprite: {
-    width: 200,
-    height: 200,
+    width: 180,
+    height: 180,
   },
   statusMessage: {
     fontFamily: 'PressStart2P_400Regular',
@@ -3239,6 +3456,12 @@ const styles = StyleSheet.create({
     fontFamily: 'PressStart2P_400Regular',
     fontSize: 8,
     flex: 1,
+  },
+  coinsPopupDarkText: {
+    color: '#3D2914',
+    textShadowColor: 'rgba(255, 255, 255, 0.8)',
+    textShadowOffset: { width: 0, height: 0 },
+    textShadowRadius: 2,
   },
   useItemButton: {
     backgroundColor: 'rgba(76, 175, 80, 0.9)',
@@ -3703,6 +3926,88 @@ const styles = StyleSheet.create({
     width: 60,
     height: 60,
   },
+  // New Pet Shop Card Styles
+  petShopCard: {
+    width: '47%',
+    backgroundColor: 'rgba(255, 229, 180, 0.5)',
+    borderWidth: 3,
+    borderColor: '#8B4513',
+    borderRadius: 12,
+    padding: 10,
+    marginBottom: 10,
+    alignItems: 'center',
+  },
+  petShopCardPurchased: {
+    borderColor: '#4CAF50',
+    backgroundColor: 'rgba(76, 175, 80, 0.15)',
+  },
+  petShopCardEquipped: {
+    borderColor: '#2196F3',
+    borderWidth: 4,
+    backgroundColor: 'rgba(33, 150, 243, 0.15)',
+  },
+  petShopImageContainer: {
+    width: 80,
+    height: 80,
+    backgroundColor: 'rgba(255, 255, 255, 0.6)',
+    borderRadius: 40,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 8,
+    borderWidth: 2,
+    borderColor: 'rgba(139, 69, 19, 0.3)',
+  },
+  petShopImage: {
+    width: 65,
+    height: 65,
+  },
+  petShopName: {
+    fontFamily: 'PressStart2P_400Regular',
+    fontSize: 9,
+    color: '#5C4033',
+    marginBottom: 8,
+    textAlign: 'center',
+  },
+  petShopStatusContainer: {
+    alignItems: 'center',
+    gap: 4,
+  },
+  petShopOwnedText: {
+    fontFamily: 'PressStart2P_400Regular',
+    fontSize: 7,
+    color: '#4CAF50',
+  },
+  petShopEquippedBadge: {
+    backgroundColor: '#2196F3',
+    borderRadius: 4,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+  },
+  petShopEquippedText: {
+    fontFamily: 'PressStart2P_400Regular',
+    fontSize: 6,
+    color: '#FFFFFF',
+  },
+  petShopBuyButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'rgba(139, 69, 19, 0.85)',
+    borderRadius: 6,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderWidth: 2,
+    borderColor: '#5C4033',
+  },
+  petShopCoinIcon: {
+    width: 16,
+    height: 16,
+    marginRight: 6,
+  },
+  petShopPrice: {
+    fontFamily: 'PressStart2P_400Regular',
+    fontSize: 9,
+    color: '#FFFFFF',
+  },
   purchasedContainer: {
     alignItems: 'center',
     marginTop: 4,
@@ -3805,6 +4110,96 @@ const styles = StyleSheet.create({
     fontSize: 10,
     color: '#5C4033',
     textAlign: 'center',
+  },
+  // Delete Pet Confirmation Modal
+  deleteConfirmOverlay: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: 'rgba(0, 0, 0, 0.8)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    zIndex: 4000,
+  },
+  deleteConfirmPopup: {
+    backgroundColor: 'rgba(60, 20, 20, 0.95)',
+    borderWidth: 4,
+    borderColor: '#8B0000',
+    borderRadius: 12,
+    padding: 24,
+    maxWidth: '85%',
+    alignItems: 'center',
+  },
+  deleteConfirmTitle: {
+    fontFamily: 'PressStart2P_400Regular',
+    fontSize: 14,
+    color: '#FF4444',
+    marginBottom: 16,
+    textAlign: 'center',
+  },
+  deleteConfirmText: {
+    fontFamily: 'PressStart2P_400Regular',
+    fontSize: 8,
+    color: '#FFFFFF',
+    textAlign: 'center',
+    lineHeight: 14,
+    marginBottom: 12,
+  },
+  deleteConfirmWarning: {
+    fontFamily: 'PressStart2P_400Regular',
+    fontSize: 8,
+    color: '#FF6666',
+    textAlign: 'center',
+    marginBottom: 20,
+  },
+  deleteConfirmButtons: {
+    flexDirection: 'row',
+    gap: 16,
+  },
+  deleteConfirmCancelButton: {
+    backgroundColor: 'rgba(100, 100, 100, 0.9)',
+    borderWidth: 3,
+    borderColor: '#666666',
+    borderRadius: 8,
+    paddingVertical: 10,
+    paddingHorizontal: 20,
+  },
+  deleteConfirmCancelText: {
+    fontFamily: 'PressStart2P_400Regular',
+    fontSize: 10,
+    color: '#FFFFFF',
+  },
+  deleteConfirmDeleteButton: {
+    backgroundColor: 'rgba(139, 0, 0, 0.9)',
+    borderWidth: 3,
+    borderColor: '#FF0000',
+    borderRadius: 8,
+    paddingVertical: 10,
+    paddingHorizontal: 20,
+  },
+  deleteConfirmDeleteText: {
+    fontFamily: 'PressStart2P_400Regular',
+    fontSize: 10,
+    color: '#FFFFFF',
+  },
+  // Dropdown row with delete button
+  dropdownOptionRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+  },
+  dropdownOptionContent: {
+    flex: 1,
+  },
+  deleteButton: {
+    padding: 4,
+    marginLeft: 8,
+  },
+  deleteButtonText: {
+    fontSize: 14,
   },
   shopCategoryImage: {
     width: 40,

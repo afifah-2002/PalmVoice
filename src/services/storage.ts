@@ -17,6 +17,27 @@ function getPetStorageKey(petType: string): string {
 }
 
 /**
+ * Delete a pet completely from storage
+ */
+export async function deletePet(petType: string): Promise<void> {
+  try {
+    // Remove pet data
+    await AsyncStorage.removeItem(getPetStorageKey(petType));
+    
+    // Check if this was the current pet
+    const currentPetType = await AsyncStorage.getItem(CURRENT_PET_TYPE_KEY);
+    if (currentPetType === petType) {
+      await AsyncStorage.removeItem(CURRENT_PET_TYPE_KEY);
+    }
+    
+    console.log(`Pet ${petType} deleted from storage`);
+  } catch (error) {
+    console.error('Error deleting pet:', error);
+    throw error;
+  }
+}
+
+/**
  * Save tasks to AsyncStorage
  */
 export async function saveTasks(tasks: Task[]): Promise<void> {

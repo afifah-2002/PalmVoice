@@ -1,7 +1,7 @@
 import { PressStart2P_400Regular, useFonts } from '@expo-google-fonts/press-start-2p';
 import { useRouter } from 'expo-router';
-import React, { useEffect, useState } from 'react';
-import { FlatList, Image, Modal, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import React, { useEffect, useRef, useState } from 'react';
+import { Animated, FlatList, Image, Modal, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { FavoriteButtons } from '../components/FavoriteButtons';
 import { PalmButton } from '../components/PalmButton';
 import { PixelAlert } from '../components/PixelAlert';
@@ -41,6 +41,13 @@ export const TaskListScreen: React.FC = () => {
   const [showIconPicker, setShowIconPicker] = useState(false);
   const [iconPickerTask, setIconPickerTask] = useState<Task | null>(null);
   const [overdueTask, setOverdueTask] = useState<Task | null>(null);
+  const [showCoinPopup, setShowCoinPopup] = useState(false);
+  const [coinPopupAmount, setCoinPopupAmount] = useState(1);
+  
+  // Animation refs for coin popup
+  const coinPopupScale = useRef(new Animated.Value(0)).current;
+  const coinPopupOpacity = useRef(new Animated.Value(0)).current;
+  const coinPopupTranslateY = useRef(new Animated.Value(20)).current;
   
   const { currentTheme } = useTheme();
   
@@ -94,6 +101,62 @@ export const TaskListScreen: React.FC = () => {
     }
   };
 
+  // Show animated coin popup
+  const showCoinEarnedPopup = (amount: number) => {
+    setCoinPopupAmount(amount);
+    setShowCoinPopup(true);
+    
+    // Reset animation values
+    coinPopupScale.setValue(0);
+    coinPopupOpacity.setValue(0);
+    coinPopupTranslateY.setValue(20);
+    
+    // Animate in: scale up, fade in, slide up
+    Animated.parallel([
+      Animated.spring(coinPopupScale, {
+        toValue: 1,
+        tension: 100,
+        friction: 8,
+        useNativeDriver: true,
+      }),
+      Animated.timing(coinPopupOpacity, {
+        toValue: 1,
+        duration: 200,
+        useNativeDriver: true,
+      }),
+      Animated.spring(coinPopupTranslateY, {
+        toValue: 0,
+        tension: 100,
+        friction: 8,
+        useNativeDriver: true,
+      }),
+    ]).start();
+    
+    // Auto hide after 1.5 seconds
+    setTimeout(() => {
+      // Animate out: scale down, fade out, slide up more
+      Animated.parallel([
+        Animated.timing(coinPopupScale, {
+          toValue: 0.5,
+          duration: 300,
+          useNativeDriver: true,
+        }),
+        Animated.timing(coinPopupOpacity, {
+          toValue: 0,
+          duration: 300,
+          useNativeDriver: true,
+        }),
+        Animated.timing(coinPopupTranslateY, {
+          toValue: -30,
+          duration: 300,
+          useNativeDriver: true,
+        }),
+      ]).start(() => {
+        setShowCoinPopup(false);
+      });
+    }, 1500);
+  };
+
   const toggleTask = (id: string) => {
     if (isSelectionMode) {
       // Toggle selection
@@ -123,6 +186,9 @@ export const TaskListScreen: React.FC = () => {
         const currentCoins = await loadCoins();
         const newCoins = currentCoins + 1; // +1 coin for completing 1 task
         await saveCoins(newCoins);
+        
+        // Show coin earned popup
+        showCoinEarnedPopup(1);
       }
       
       setTasks(tasks.map(task => 
@@ -288,6 +354,9 @@ export const TaskListScreen: React.FC = () => {
         
         const newCoins = currentCoins + coinsToAdd;
         await saveCoins(newCoins);
+        
+        // Show coin earned popup
+        showCoinEarnedPopup(coinsToAdd);
       }
     }
     setSelectedTaskIds(new Set());
@@ -1280,6 +1349,34 @@ export const TaskListScreen: React.FC = () => {
           )}
         </View>
 
+        {/* Coin Earned Popup */}
+        {showCoinPopup && (
+          <Animated.View
+            style={[
+              styles.coinPopupContainer,
+              {
+                opacity: coinPopupOpacity,
+                transform: [
+                  { scale: coinPopupScale },
+                  { translateY: coinPopupTranslateY },
+                ],
+              },
+            ]}
+            pointerEvents="none"
+          >
+            <View style={styles.coinPopup}>
+              <Image
+                source={require('../../assets/rewards/coins.png')}
+                style={styles.coinPopupIcon}
+                resizeMode="contain"
+              />
+              <Text style={styles.coinPopupText}>
+                +{coinPopupAmount} COIN{coinPopupAmount > 1 ? 'S' : ''}!
+              </Text>
+            </View>
+          </Animated.View>
+        )}
+
         {/* Favorite Buttons - Gray Bezel Bottom */}
         <FavoriteButtons />
       </View>
@@ -1946,5 +2043,42 @@ const styles = StyleSheet.create({
   descriptionButtonText: {
     fontFamily: 'PressStart2P_400Regular',
     fontSize: 10,
+  },
+  coinPopupContainer: {
+    position: 'absolute',
+    top: '40%',
+    left: 0,
+    right: 0,
+    alignItems: 'center',
+    justifyContent: 'center',
+    zIndex: 9999,
+  },
+  coinPopup: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'rgba(255, 215, 0, 0.95)',
+    borderWidth: 4,
+    borderColor: '#DAA520',
+    borderRadius: 12,
+    paddingVertical: 16,
+    paddingHorizontal: 24,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 10,
+  },
+  coinPopupIcon: {
+    width: 36,
+    height: 36,
+    marginRight: 12,
+  },
+  coinPopupText: {
+    fontFamily: 'PressStart2P_400Regular',
+    fontSize: 14,
+    color: '#5C4033',
+    textShadowColor: 'rgba(255, 255, 255, 0.5)',
+    textShadowOffset: { width: 1, height: 1 },
+    textShadowRadius: 2,
   },
 });
