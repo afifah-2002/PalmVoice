@@ -370,7 +370,11 @@ export default function LauncherScreen() {
                           <Image
                             source={
                               pet.type === 'puppy'
-                                ? require('../../assets/pets/puppy/puppycry1.png')
+                                ? require('../../assets/pets/puppy/puppydead.png')
+                                : pet.type === 'panda'
+                                ? require('../../assets/pets/panda/pandadead.png')
+                                : pet.type === 'koala'
+                                ? require('../../assets/pets/koala/koaladead.png')
                                 : require('../../assets/pets/cat/catdead.png')
                             }
                             style={styles.petSprite}

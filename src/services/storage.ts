@@ -123,7 +123,7 @@ export async function loadPetsTheme(): Promise<string | null> {
 /**
  * Save pet data to AsyncStorage (by pet type)
  */
-export async function savePet(pet: { type: string; name: string; health: number; lastFed: number; lastPet: number; lastPlay?: number; createdAt?: number } | null, petType?: string): Promise<void> {
+export async function savePet(pet: { type: string; name: string; health: number; lastFed: number; lastPet: number; lastPlay?: number; lastPotion?: number; lastRevival?: number; createdAt?: number; originalCreatedAt?: number } | null, petType?: string): Promise<void> {
   try {
     if (pet === null) {
       // If no pet type provided, clear the old single pet storage for backward compatibility
@@ -153,7 +153,7 @@ export async function savePet(pet: { type: string; name: string; health: number;
 /**
  * Load pet data from AsyncStorage (by pet type)
  */
-export async function loadPet(petType?: string): Promise<{ type: string; name: string; health: number; lastFed: number; lastPet: number; lastPlay?: number; createdAt?: number } | null> {
+export async function loadPet(petType?: string): Promise<{ type: string; name: string; health: number; lastFed: number; lastPet: number; lastPlay?: number; lastPotion?: number; lastRevival?: number; createdAt?: number; originalCreatedAt?: number } | null> {
   try {
     // If petType is provided, load that specific pet
     if (petType) {

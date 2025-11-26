@@ -17,11 +17,14 @@ type PetStatus = 'happy' | 'hungry' | 'sad' | 'dead' | 'sleeping';
 interface Pet {
   type: PetType;
   name: string;
-  health: number;
-  lastFed: number;
-  lastPet: number;
+  health: number; // Health at time of last interaction (baseline for decline calculation)
+  lastFed: number; // Timestamp of last feed action
+  lastPet: number; // Timestamp of last pet action
   lastPlay?: number; // Timestamp of last play action
-  createdAt?: number; // Timestamp of when pet was created (24-hour cycle starts from this point)
+  lastPotion?: number; // Timestamp of last potion used
+  lastRevival?: number; // Timestamp of last revival
+  createdAt?: number; // Timestamp of creation/revival (used for health decline reference)
+  originalCreatedAt?: number; // Original creation time (never changes, used for streak)
 }
 
 // Theme mapping with all available themes
@@ -435,14 +438,69 @@ export function PetsScreen() {
       if (savedPet) {
         // Backward compatibility: if pet doesn't have createdAt, set it to now
         if (!savedPet.createdAt) {
+          const now = Date.now();
           const updatedPet = {
             ...savedPet,
-            createdAt: Date.now(), // Start 24-hour cycle from now
+            createdAt: now,
+            // If no lastFed/lastPet/lastPlay, set them to now so health doesn't decline immediately
+            lastFed: savedPet.lastFed || now,
+            lastPet: savedPet.lastPet || now,
+            lastPlay: savedPet.lastPlay || now,
           };
-          setPet(updatedPet);
+          setPet(updatedPet as Pet);
           savePet(updatedPet, updatedPet.type);
         } else {
-          setPet(savedPet as Pet);
+          // Backward compatibility: ensure originalCreatedAt exists
+          const petWithOriginalCreated = {
+            ...savedPet,
+            originalCreatedAt: savedPet.originalCreatedAt || savedPet.createdAt,
+            lastPotion: savedPet.lastPotion || 0,
+            lastRevival: savedPet.lastRevival || 0,
+          };
+          
+          // Calculate correct health based on time since last interaction
+          // Include potion and revival in the calculation
+          const lastInteraction = Math.max(
+            petWithOriginalCreated.lastFed || 0,
+            petWithOriginalCreated.lastPet || 0,
+            petWithOriginalCreated.lastPlay || 0,
+            petWithOriginalCreated.lastPotion || 0,
+            petWithOriginalCreated.lastRevival || 0
+          );
+          
+          let calculatedHealth = petWithOriginalCreated.health;
+          
+          if (lastInteraction > 0) {
+            // Health declines from last interaction
+            const now = Date.now();
+            const elapsedSinceInteraction = now - lastInteraction;
+            const hoursPerHeart = 4.8;
+            const millisecondsPerHeart = hoursPerHeart * 60 * 60 * 1000;
+            const heartsLost = Math.floor(elapsedSinceInteraction / millisecondsPerHeart);
+            calculatedHealth = Math.max(0, petWithOriginalCreated.health - heartsLost);
+          } else if (petWithOriginalCreated.createdAt) {
+            // New pet with no interactions - decline from creation
+            const now = Date.now();
+            const elapsedTime = now - petWithOriginalCreated.createdAt;
+            const hoursPerHeart = 4.8;
+            const millisecondsPerHeart = hoursPerHeart * 60 * 60 * 1000;
+            const heartsLost = Math.floor(elapsedTime / millisecondsPerHeart);
+            calculatedHealth = Math.max(0, 5 - heartsLost);
+          }
+          
+          // Update pet with correct health and new fields
+          const correctedPet = {
+            ...petWithOriginalCreated,
+            health: calculatedHealth,
+          };
+          
+          if (savedPet.health !== calculatedHealth || !savedPet.originalCreatedAt) {
+            console.log(`Pet updated on load: health ${savedPet.health} -> ${calculatedHealth}, originalCreatedAt set`);
+            setPet(correctedPet as Pet);
+            savePet(correctedPet, correctedPet.type);
+          } else {
+            setPet(correctedPet as Pet);
+          }
         }
       }
     });
@@ -506,102 +564,115 @@ export function PetsScreen() {
   // Calculate health based on time elapsed since pet was created
   // 1 heart per 4.8 hours = 17,280,000 milliseconds (5 hearts = 24 hours)
   const calculateHealthFromTime = (pet: Pet): number => {
-    if (!pet.createdAt) {
-      // For backward compatibility, if createdAt doesn't exist, return current health
-      return pet.health;
+    // Get the most recent interaction time
+    const lastInteraction = Math.max(
+      pet.lastFed || 0,
+      pet.lastPet || 0,
+      pet.lastPlay || 0
+    );
+    
+    // If no interactions ever, pet starts at full health (5 hearts)
+    // and declines from creation time
+    if (lastInteraction === 0) {
+      if (!pet.createdAt) {
+        return pet.health; // No data, keep current health
+      }
+      // New pet with no interactions - decline from creation
+      const now = Date.now();
+      const elapsedTime = now - pet.createdAt;
+      const hoursPerHeart = 4.8;
+      const millisecondsPerHeart = hoursPerHeart * 60 * 60 * 1000;
+      const heartsLost = Math.floor(elapsedTime / millisecondsPerHeart);
+      return Math.max(0, 5 - heartsLost);
     }
     
+    // Calculate health based on time since last interaction
     const now = Date.now();
-    const elapsedTime = now - pet.createdAt;
+    const elapsedSinceInteraction = now - lastInteraction;
     const hoursPerHeart = 4.8;
     const millisecondsPerHeart = hoursPerHeart * 60 * 60 * 1000; // 17,280,000 ms
     
-    const heartsLost = Math.floor(elapsedTime / millisecondsPerHeart);
-    const calculatedHealth = Math.max(0, 5 - heartsLost);
+    // Each heart is lost after 4.8 hours of no interaction
+    const heartsLost = Math.floor(elapsedSinceInteraction / millisecondsPerHeart);
+    
+    // Health declines from the health at last interaction (stored in pet.health)
+    // But we need to track what health was AT the time of last interaction
+    // Since we boost health +1 on each action, the stored health reflects post-action health
+    // So decline from that stored health value
+    const calculatedHealth = Math.max(0, pet.health - heartsLost);
     
     // Debug logging
-    const hoursElapsed = elapsedTime / (60 * 60 * 1000);
-    console.log(`Health calculation: ${hoursElapsed.toFixed(2)} hours elapsed, ${heartsLost} hearts lost, calculated health: ${calculatedHealth}`);
+    const hoursElapsed = elapsedSinceInteraction / (60 * 60 * 1000);
+    console.log(`Health calculation: ${hoursElapsed.toFixed(2)} hours since last interaction, ${heartsLost} hearts lost, health: ${pet.health} -> ${calculatedHealth}`);
     
     return calculatedHealth;
   };
 
-  // Update health based on time elapsed (check every minute)
-  // Use pet?.createdAt as dependency so it only re-runs when a new pet is created, not on every pet state change
-  useEffect(() => {
-    if (!pet) {
-      return;
+  // Calculate current health based on time since last interaction
+  // This is a helper that computes health dynamically without modifying stored state
+  // Considers: feed, pet, play, potion, and revival as interactions that reset the clock
+  const getCurrentHealth = (petData: Pet): number => {
+    // Get the most recent interaction time (including potion and revival)
+    const lastInteraction = Math.max(
+      petData.lastFed || 0,
+      petData.lastPet || 0,
+      petData.lastPlay || 0,
+      petData.lastPotion || 0,
+      petData.lastRevival || 0
+    );
+    
+    const now = Date.now();
+    const hoursPerHeart = 4.8;
+    const millisecondsPerHeart = hoursPerHeart * 60 * 60 * 1000;
+    
+    if (lastInteraction > 0) {
+      // Health declines from the stored health (which was set at last interaction)
+      const elapsedSinceInteraction = now - lastInteraction;
+      const heartsLost = Math.floor(elapsedSinceInteraction / millisecondsPerHeart);
+      return Math.max(0, petData.health - heartsLost);
+    } else if (petData.createdAt) {
+      // New pet with no interactions - decline from creation (starting at 5 hearts)
+      const elapsedTime = now - petData.createdAt;
+      const heartsLost = Math.floor(elapsedTime / millisecondsPerHeart);
+      return Math.max(0, 5 - heartsLost);
     }
+    
+    return petData.health;
+  };
 
-    const updateHealth = () => {
-      setPet((currentPet) => {
-        if (!currentPet) {
-          return currentPet;
-        }
-        
-        const calculatedHealth = calculateHealthFromTime(currentPet);
-        
-        // Check if any action was performed recently (within last 30 seconds)
-        // If so, don't reduce health - allow temporary boosts to persist
-        const now = Date.now();
-        const recentActionThreshold = 30 * 1000; // 30 seconds
-        const lastActionTime = Math.max(
-          currentPet.lastFed || 0,
-          currentPet.lastPet || 0,
-          currentPet.lastPlay || 0
-        );
-        const actionWasRecent = (now - lastActionTime) < recentActionThreshold;
-        
-        // Don't reduce health if action was just performed
-        if (actionWasRecent && currentPet.health > calculatedHealth) {
-          console.log('Action was recent, keeping boosted health');
-          return currentPet;
-        }
-        
-        // Update health based on time calculation
-        let newHealth = currentPet.health;
-        
-        // Reduce health if above calculated (time-based decline)
-        if (currentPet.health > calculatedHealth) {
-          newHealth = calculatedHealth;
-        }
-        
-        // Only increase health if it's below calculated (shouldn't happen normally)
-        if (currentPet.health < calculatedHealth) {
-          newHealth = calculatedHealth;
-        }
-        
-        // Update if health changed
-        if (newHealth !== currentPet.health) {
-          console.log(`Updating health from ${currentPet.health} to ${newHealth}`);
-          const updatedPet = {
-            ...currentPet,
-            health: newHealth,
-          };
-          savePet(updatedPet, updatedPet.type); // Save to storage
-          return updatedPet;
-        }
-        
-        return currentPet;
-      });
-    };
+  // Force re-render every minute to update displayed health
+  const [, forceUpdate] = useState(0);
+  useEffect(() => {
+    if (!pet) return;
+    
+    const interval = setInterval(() => {
+      forceUpdate(n => n + 1);
+    }, 60000); // Update display every minute
+    
+    return () => clearInterval(interval);
+  }, [pet?.type]);
 
-    // Update immediately on mount
-    updateHealth();
-
-    // Then update every minute
-    const healthUpdateInterval = setInterval(updateHealth, 60000); // Every 1 minute
-
-    return () => clearInterval(healthUpdateInterval);
-  }, [pet?.createdAt, pet?.type]); // Only re-run when pet is created/changed, not on health updates
+  // Calculate the current displayed health (used for UI and logic)
+  // This is computed dynamically based on time since last interaction
+  const displayedHealth = pet ? getCurrentHealth(pet) : 0;
 
 
   // Auto-close coins popup after 3 seconds
   useEffect(() => {
     if (showCoinsPopup) {
+      // Reload global items from storage when popup opens
+      const loadItems = async () => {
+        const tokens = await loadRevivalTokens();
+        const potions = await loadHealthPotions();
+        console.log('Coins popup opened - loaded tokens:', tokens, 'potions:', potions);
+        setRevivalTokens(tokens);
+        setHealthPotions(potions);
+      };
+      loadItems();
+      
       const timeout = setTimeout(() => {
         setShowCoinsPopup(false);
-      }, 3000);
+      }, 20000); // Extended to 20 seconds
       
       return () => {
         clearTimeout(timeout);
@@ -635,7 +706,7 @@ export function PetsScreen() {
 
   // Animate cat sit frames (when no active animation and cat is alive)
   useEffect(() => {
-    if (!pet || activeAnimation !== null || pet.health === 0) {
+    if (!pet || activeAnimation !== null || getCurrentHealth(pet) === 0) {
       setCurrentCatFrame(0);
       return;
     }
@@ -671,7 +742,7 @@ export function PetsScreen() {
 
   // Animate hungry cat when health is 2 (but not 1)
   useEffect(() => {
-    if (!pet || activeAnimation !== null || pet.health === 0 || pet.health !== 2) {
+    if (!pet || activeAnimation !== null || getCurrentHealth(pet) === 0 || getCurrentHealth(pet) !== 2) {
       setHungryAnimationFrame(0);
       return;
     }
@@ -948,20 +1019,22 @@ export function PetsScreen() {
 
   // Use health potion to restore 2 hearts
   const useHealthPotion = async () => {
-    if (healthPotions <= 0 || !pet || pet.health >= 5 || pet.health === 0) {
+    if (!pet) return;
+    
+    const currentHealth = getCurrentHealth(pet);
+    if (healthPotions <= 0 || currentHealth >= 5 || currentHealth === 0) {
       return;
     }
 
-    const newHealth = Math.min(5, pet.health + 2);
+    const newHealth = Math.min(5, currentHealth + 2);
     const now = Date.now();
-    const hoursPerHeart = 4.8;
-    const millisecondsPerHeart = hoursPerHeart * 60 * 60 * 1000;
-    const newCreatedAt = now - ((5 - newHealth) * millisecondsPerHeart);
 
+    // Using potion counts as an interaction, resets the decline clock
     const updatedPet: Pet = {
       ...pet,
-      health: newHealth,
-      createdAt: newCreatedAt,
+      health: newHealth, // This becomes the new baseline
+      lastPotion: now, // Track when potion was used
+      // Keep other timestamps as they were - only lastPotion resets the clock
     };
     setPet(updatedPet);
     savePet(updatedPet, updatedPet.type);
@@ -969,6 +1042,7 @@ export function PetsScreen() {
     const newPotions = healthPotions - 1;
     setHealthPotions(newPotions);
     await saveHealthPotions(newPotions);
+    console.log('Used potion, new health:', newHealth, 'lastPotion updated to:', now);
   };
 
   // Helper function to render a theme item
@@ -1069,12 +1143,15 @@ export function PetsScreen() {
   };
 
   const calculateStreak = (pet: Pet | null): number => {
-    if (!pet || !pet.createdAt) {
+    // Use originalCreatedAt for streak calculation (survives revivals)
+    const creationTime = pet?.originalCreatedAt || pet?.createdAt;
+    if (!pet || !creationTime) {
       return 0;
     }
     
-    // If pet is dead, streak is 0
-    if (pet.health === 0) {
+    // If pet is currently dead, streak pauses (shows 0)
+    // But once revived, streak continues from originalCreatedAt
+    if (getCurrentHealth(pet) === 0) {
       return 0;
     }
     
@@ -1083,8 +1160,8 @@ export function PetsScreen() {
     today.setHours(0, 0, 0, 0);
     const todayTimestamp = today.getTime();
     
-    // Get midnight of creation day
-    const creationDate = new Date(pet.createdAt);
+    // Get midnight of original creation day (survives revivals)
+    const creationDate = new Date(creationTime);
     creationDate.setHours(0, 0, 0, 0);
     const creationTimestamp = creationDate.getTime();
     
@@ -1132,9 +1209,50 @@ export function PetsScreen() {
       loadPet(petType).then((existingPet) => {
         if (existingPet) {
           // Pet already exists, switch to it
-          setPet(existingPet as Pet);
-          // Save as current pet so it loads on next visit
-          savePet(existingPet, existingPet.type);
+          // Ensure backward compatibility
+          const petWithNewFields = {
+            ...existingPet,
+            originalCreatedAt: existingPet.originalCreatedAt || existingPet.createdAt,
+            lastPotion: existingPet.lastPotion || 0,
+            lastRevival: existingPet.lastRevival || 0,
+          };
+          
+          // Recalculate health based on time since last interaction
+          // Include potion and revival in the calculation
+          const lastInteraction = Math.max(
+            petWithNewFields.lastFed || 0,
+            petWithNewFields.lastPet || 0,
+            petWithNewFields.lastPlay || 0,
+            petWithNewFields.lastPotion || 0,
+            petWithNewFields.lastRevival || 0
+          );
+          
+          let calculatedHealth = petWithNewFields.health;
+          const now = Date.now();
+          
+          if (lastInteraction > 0) {
+            // Health declines from last interaction
+            const elapsedSinceInteraction = now - lastInteraction;
+            const hoursPerHeart = 4.8;
+            const millisecondsPerHeart = hoursPerHeart * 60 * 60 * 1000;
+            const heartsLost = Math.floor(elapsedSinceInteraction / millisecondsPerHeart);
+            calculatedHealth = Math.max(0, petWithNewFields.health - heartsLost);
+          } else if (petWithNewFields.createdAt) {
+            // New pet with no interactions - decline from creation
+            const elapsedTime = now - petWithNewFields.createdAt;
+            const hoursPerHeart = 4.8;
+            const millisecondsPerHeart = hoursPerHeart * 60 * 60 * 1000;
+            const heartsLost = Math.floor(elapsedTime / millisecondsPerHeart);
+            calculatedHealth = Math.max(0, 5 - heartsLost);
+          }
+          
+          const correctedPet = {
+            ...petWithNewFields,
+            health: calculatedHealth,
+          };
+          setPet(correctedPet as Pet);
+          // Save as current pet with corrected health
+          savePet(correctedPet, correctedPet.type);
           setShowPetDropdown(false);
         } else {
           // New pet, show name modal
@@ -1194,10 +1312,13 @@ export function PetsScreen() {
         type: selectedPetType,
         name: petName.trim().replace(/\s+/g, '').toUpperCase(), // Remove all spaces
         health: 5,
-        lastFed: 0, // Initialize to 0 so action can be done
+        lastFed: now, // Start with interaction time so clock starts now
         lastPet: 0, // Initialize to 0 so action can be done
         lastPlay: 0, // Initialize to 0 so action can be done
-        createdAt: now, // 24-hour cycle starts from creation time
+        lastPotion: 0, // No potions used yet
+        lastRevival: 0, // No revivals used yet
+        createdAt: now, // Used for health decline reference
+        originalCreatedAt: now, // Never changes - used for streak counting
       };
       setPet(newPet);
       savePet(newPet, selectedPetType); // Save to storage with pet type
@@ -1222,13 +1343,14 @@ export function PetsScreen() {
 
   const handleFeed = () => {
     if (pet) {
-      if (pet.health === 0) {
+      const currentHealth = getCurrentHealth(pet);
+      if (currentHealth === 0) {
         // Show revive popup if cat is dead
         setShowRevivePopup(true);
-      } else if (pet.health >= 5) {
+      } else if (currentHealth >= 5) {
         // Health is already full
         setShowFullHealthAlert(true);
-      } else if (pet.health > 0 && pet.health < 5) {
+      } else if (currentHealth > 0 && currentHealth < 5) {
         // Check if feed was already done today
         if (wasActionDoneToday(pet.lastFed)) {
           setTryAgainActionType('feed');
@@ -1237,40 +1359,37 @@ export function PetsScreen() {
         }
         
         setActiveAnimation('feed');
-        const newHealth = Math.min(5, pet.health + 1); // Cap at 5
+        const newHealth = Math.min(5, currentHealth + 1); // Cap at 5
         const now = Date.now();
-        // Reset createdAt so the 4.8-hour clock starts from the new health level
-        // Formula: createdAt = now - (heartsLost * 4.8hours)
-        // heartsLost = 5 - newHealth
-        const hoursPerHeart = 4.8;
-        const millisecondsPerHeart = hoursPerHeart * 60 * 60 * 1000;
-        const newCreatedAt = now - ((5 - newHealth) * millisecondsPerHeart);
         
+        // Update health and lastFed - the 4.8 hour clock resets from this interaction
+        // Store the NEW health as the baseline for future decline calculations
         const updatedPet: Pet = {
           type: pet.type,
           name: pet.name,
-          health: newHealth,
-          lastFed: now,
+          health: newHealth, // This becomes the new baseline
+          lastFed: now, // This resets the decline clock
           lastPet: pet.lastPet,
           lastPlay: pet.lastPlay,
-          createdAt: newCreatedAt, // Reset to maintain new health level
+          createdAt: pet.createdAt, // Keep createdAt for streak counting
         };
         setPet(updatedPet);
-        savePet(updatedPet, updatedPet.type); // Save to storage
-        console.log('Fed pet, new health:', updatedPet.health, 'createdAt reset');
+        savePet(updatedPet, updatedPet.type);
+        console.log('Fed pet, new health:', updatedPet.health, 'lastFed updated to:', now);
       }
     }
   };
 
   const handlePet = () => {
     if (pet) {
-      if (pet.health === 0) {
+      const currentHealth = getCurrentHealth(pet);
+      if (currentHealth === 0) {
         // Show revive popup if cat is dead
         setShowRevivePopup(true);
-      } else if (pet.health >= 5) {
+      } else if (currentHealth >= 5) {
         // Health is already full
         setShowFullHealthAlert(true);
-      } else if (pet.health > 0 && pet.health < 5) {
+      } else if (currentHealth > 0 && currentHealth < 5) {
         // Check if pet was already done today
         if (wasActionDoneToday(pet.lastPet)) {
           setTryAgainActionType('pet');
@@ -1279,38 +1398,36 @@ export function PetsScreen() {
         }
         
         setActiveAnimation('pet');
-        const newHealth = Math.min(5, pet.health + 1); // Cap at 5
+        const newHealth = Math.min(5, currentHealth + 1); // Cap at 5
         const now = Date.now();
-        // Reset createdAt so the 4.8-hour clock starts from the new health level
-        const hoursPerHeart = 4.8;
-        const millisecondsPerHeart = hoursPerHeart * 60 * 60 * 1000;
-        const newCreatedAt = now - ((5 - newHealth) * millisecondsPerHeart);
         
+        // Update health and lastPet - the 4.8 hour clock resets from this interaction
         const updatedPet: Pet = {
           type: pet.type,
           name: pet.name,
-          health: newHealth,
+          health: newHealth, // This becomes the new baseline
           lastFed: pet.lastFed,
-          lastPet: now,
+          lastPet: now, // This resets the decline clock
           lastPlay: pet.lastPlay,
-          createdAt: newCreatedAt, // Reset to maintain new health level
+          createdAt: pet.createdAt, // Keep createdAt for streak counting
         };
         setPet(updatedPet);
-        savePet(updatedPet, updatedPet.type); // Save to storage
-        console.log('Pet pet, new health:', updatedPet.health, 'createdAt reset');
+        savePet(updatedPet, updatedPet.type);
+        console.log('Pet pet, new health:', updatedPet.health, 'lastPet updated to:', now);
       }
     }
   };
 
   const handlePlay = () => {
     if (pet) {
-      if (pet.health === 0) {
+      const currentHealth = getCurrentHealth(pet);
+      if (currentHealth === 0) {
         // Show revive popup if cat is dead
         setShowRevivePopup(true);
-      } else if (pet.health >= 5) {
+      } else if (currentHealth >= 5) {
         // Health is already full
         setShowFullHealthAlert(true);
-      } else if (pet.health > 0 && pet.health < 5) {
+      } else if (currentHealth > 0 && currentHealth < 5) {
         // Check if play was already done today
         if (wasActionDoneToday(pet.lastPlay)) {
           setTryAgainActionType('play');
@@ -1319,25 +1436,22 @@ export function PetsScreen() {
         }
         
         setActiveAnimation('play');
-        const newHealth = Math.min(5, pet.health + 1); // Cap at 5
+        const newHealth = Math.min(5, currentHealth + 1); // Cap at 5
         const now = Date.now();
-        // Reset createdAt so the 4.8-hour clock starts from the new health level
-        const hoursPerHeart = 4.8;
-        const millisecondsPerHeart = hoursPerHeart * 60 * 60 * 1000;
-        const newCreatedAt = now - ((5 - newHealth) * millisecondsPerHeart);
         
+        // Update health and lastPlay - the 4.8 hour clock resets from this interaction
         const updatedPet: Pet = {
           type: pet.type,
           name: pet.name,
-          health: newHealth,
+          health: newHealth, // This becomes the new baseline
           lastFed: pet.lastFed,
           lastPet: pet.lastPet,
-          lastPlay: now,
-          createdAt: newCreatedAt, // Reset to maintain new health level
+          lastPlay: now, // This resets the decline clock
+          createdAt: pet.createdAt, // Keep createdAt for streak counting
         };
         setPet(updatedPet);
-        savePet(updatedPet, updatedPet.type); // Save to storage
-        console.log('Played with pet, new health:', updatedPet.health, 'createdAt reset');
+        savePet(updatedPet, updatedPet.type);
+        console.log('Played with pet, new health:', updatedPet.health, 'lastPlay updated to:', now);
       }
     }
   };
@@ -1363,20 +1477,26 @@ export function PetsScreen() {
     
     const now = Date.now();
     
-    // Revive the pet - reset createdAt to now to start fresh 24-hour cycle
-    // Reset action timestamps to 0 so actions can be done again
-    const revivedPet = {
+    // Revive the pet with full health
+    // lastRevival resets the 4.8 hour decline clock
+    // originalCreatedAt is preserved for streak counting (streak continues from original creation!)
+    const revivedPet: Pet = {
         ...pet,
       health: 5,
-      lastFed: 0, // Reset to 0 so action can be done
-      lastPet: 0, // Reset to 0 so action can be done
-      lastPlay: 0, // Reset to 0 so action can be done
-      createdAt: now, // 24-hour cycle starts from revive time
+      lastRevival: now, // Track when revival was used - this resets the decline clock
+      // Keep originalCreatedAt for streak counting - streak continues!
+      originalCreatedAt: pet.originalCreatedAt || pet.createdAt || now,
+      // Reset action timestamps so they can be done again
+      lastFed: 0,
+      lastPet: 0,
+      lastPlay: 0,
+      lastPotion: 0,
     };
     setPet(revivedPet);
     savePet(revivedPet, revivedPet.type);
     setShowRevivePopup(false);
-    setActiveAnimation(null); // Reset animation to show catsit
+    setActiveAnimation(null);
+    console.log('Revived pet, health: 5, lastRevival:', now, 'originalCreatedAt preserved:', revivedPet.originalCreatedAt);
   };
 
   const startGame = () => {
@@ -1429,7 +1549,7 @@ export function PetsScreen() {
     setFruits([]);
     
     // Reopen revive popup if still not enough coins
-    if (pet && pet.health === 0 && coins < 5) {
+    if (pet && displayedHealth === 0 && coins < 5) {
       setShowRevivePopup(true);
     }
   };
@@ -1458,14 +1578,14 @@ export function PetsScreen() {
 
   const getPetStatus = (): PetStatus => {
     if (!pet) return 'happy';
-    if (pet.health === 0) return 'dead';
+    if (displayedHealth === 0) return 'dead';
     
     const hour = new Date().getHours();
     if (hour >= 22 || hour < 6) return 'sleeping';
     
     const hoursSinceLastFeed = (Date.now() - pet.lastFed) / (1000 * 60 * 60);
     if (hoursSinceLastFeed > 3) return 'hungry';
-    if (pet.health < 3) return 'sad';
+    if (displayedHealth < 3) return 'sad';
     
     return 'happy';
   };
@@ -1603,30 +1723,30 @@ export function PetsScreen() {
                   
                   {/* Cat - always owned, can delete if created */}
                   <View style={[styles.dropdownOptionRow, { backgroundColor: pet?.type === 'cat' ? 'rgba(255, 255, 255, 0.1)' : 'transparent', borderBottomColor: 'rgba(255, 255, 255, 0.2)', borderBottomWidth: 1 }]}>
-                    <TouchableOpacity
-                      onPress={() => handlePetSelect('cat')}
+                  <TouchableOpacity
+                    onPress={() => handlePetSelect('cat')}
                       style={styles.dropdownOptionContent}
                     >
                       <Text style={[styles.dropdownOptionText, { color: (ALL_THEMES[petsTheme] || PETS_THEMES[petsTheme] || ALL_THEMES['serene']).color }]}>🐱 Cat</Text>
-                    </TouchableOpacity>
-                    <TouchableOpacity
+                  </TouchableOpacity>
+                  <TouchableOpacity
                       onPress={() => handleDeletePetClick('cat')}
                       style={styles.deleteButton}
-                    >
+                  >
                       <Text style={styles.deleteButtonText}>🗑️</Text>
-                    </TouchableOpacity>
+                  </TouchableOpacity>
                   </View>
                   
                   {/* Puppy */}
                   <View style={[styles.dropdownOptionRow, { backgroundColor: pet?.type === 'puppy' ? 'rgba(255, 255, 255, 0.1)' : 'transparent', borderBottomColor: 'rgba(255, 255, 255, 0.2)', borderBottomWidth: 1, opacity: purchasedPets.includes('puppy') ? 1 : 0.6 }]}>
-                    <TouchableOpacity
+                  <TouchableOpacity
                       onPress={() => handlePetSelect('puppy')}
                       style={styles.dropdownOptionContent}
-                    >
+                  >
                       <Text style={[styles.dropdownOptionText, { color: purchasedPets.includes('puppy') ? (ALL_THEMES[petsTheme] || PETS_THEMES[petsTheme] || ALL_THEMES['serene']).color : '#888888' }]}>
                         🐶 Puppy {!purchasedPets.includes('puppy') && '🔒'}
                       </Text>
-                    </TouchableOpacity>
+                  </TouchableOpacity>
                     {purchasedPets.includes('puppy') && (
                       <TouchableOpacity
                         onPress={() => handleDeletePetClick('puppy')}
@@ -1635,7 +1755,7 @@ export function PetsScreen() {
                         <Text style={styles.deleteButtonText}>🗑️</Text>
                       </TouchableOpacity>
                     )}
-                  </View>
+                </View>
                   
                   {/* Panda */}
                   <View style={[styles.dropdownOptionRow, { borderBottomColor: 'rgba(255, 255, 255, 0.2)', borderBottomWidth: 1, opacity: purchasedPets.includes('panda') ? 1 : 0.6 }]}>
@@ -1655,8 +1775,8 @@ export function PetsScreen() {
                         <Text style={styles.deleteButtonText}>🗑️</Text>
                       </TouchableOpacity>
                     )}
-                  </View>
-                  
+          </View>
+
                   {/* Koala */}
                   <View style={[styles.dropdownOptionRow, { opacity: purchasedPets.includes('koala') ? 1 : 0.6 }]}>
                     <TouchableOpacity
@@ -1665,7 +1785,7 @@ export function PetsScreen() {
                     >
                       <Text style={[styles.dropdownOptionText, { color: purchasedPets.includes('koala') ? (ALL_THEMES[petsTheme] || PETS_THEMES[petsTheme] || ALL_THEMES['serene']).color : '#888888' }]}>
                         🐨 Koala {!purchasedPets.includes('koala') && '🔒'}
-                      </Text>
+                  </Text>
                     </TouchableOpacity>
                     {purchasedPets.includes('koala') && (
                       <TouchableOpacity
@@ -1678,33 +1798,33 @@ export function PetsScreen() {
                   </View>
                 </View>
               )}
-          </View>
+              </View>
 
             {/* Health Bar and Coins - Top Right */}
             <View style={styles.topRightContainer}>
               {pet && (
-                <View key={`health-${pet.health}-${pet.lastFed}-${pet.lastPet}-${pet.lastPlay}`} style={styles.healthBarContainer}>
+                <View key={`health-${displayedHealth}-${pet.lastFed}-${pet.lastPet}-${pet.lastPlay}`} style={styles.healthBarContainer}>
                   <Image 
-                    key={`heart-${pet.health}`}
+                    key={`heart-${displayedHealth}`}
                     source={
-                      pet.health === 5 ? require('../../assets/pets/health/heart5 .png') :
-                      pet.health === 4 ? require('../../assets/pets/health/heart4.png') :
-                      pet.health === 3 ? require('../../assets/pets/health/heart3.png') :
-                      pet.health === 2 ? require('../../assets/pets/health/heart2.png') :
-                      pet.health === 1 ? require('../../assets/pets/health/heart1.png') :
+                      displayedHealth === 5 ? require('../../assets/pets/health/heart5 .png') :
+                      displayedHealth === 4 ? require('../../assets/pets/health/heart4.png') :
+                      displayedHealth === 3 ? require('../../assets/pets/health/heart3.png') :
+                      displayedHealth === 2 ? require('../../assets/pets/health/heart2.png') :
+                      displayedHealth === 1 ? require('../../assets/pets/health/heart1.png') :
                       require('../../assets/pets/health/heart0.png')
                     }
                     style={styles.healthHeart}
                     resizeMode="contain"
                   />
                   <Image 
-                    key={`bar-${pet.health}`}
+                    key={`bar-${displayedHealth}`}
                     source={
-                      pet.health === 5 ? require('../../assets/pets/health/bar5.png') :
-                      pet.health === 4 ? require('../../assets/pets/health/bar4.png') :
-                      pet.health === 3 ? require('../../assets/pets/health/bar3.png') :
-                      pet.health === 2 ? require('../../assets/pets/health/bar2.png') :
-                      pet.health === 1 ? require('../../assets/pets/health/bar1.png') :
+                      displayedHealth === 5 ? require('../../assets/pets/health/bar5.png') :
+                      displayedHealth === 4 ? require('../../assets/pets/health/bar4.png') :
+                      displayedHealth === 3 ? require('../../assets/pets/health/bar3.png') :
+                      displayedHealth === 2 ? require('../../assets/pets/health/bar2.png') :
+                      displayedHealth === 1 ? require('../../assets/pets/health/bar1.png') :
                       require('../../assets/pets/health/bar0.png')
                     }
                     style={styles.healthBarImage}
@@ -1805,11 +1925,15 @@ export function PetsScreen() {
                 </TouchableOpacity>
               
               {/* Animated Pet Sprite */}
-              {pet.health === 0 ? (
+              {displayedHealth === 0 ? (
                 <Image
                   source={
                     pet.type === 'puppy' 
-                      ? require('../../assets/pets/puppy/puppycry1.png') // Use cry frame for dead puppy
+                      ? require('../../assets/pets/puppy/puppydead.png')
+                      : pet.type === 'panda'
+                      ? require('../../assets/pets/panda/pandadead.png')
+                      : pet.type === 'koala'
+                      ? require('../../assets/pets/koala/koaladead.png')
                       : require('../../assets/pets/cat/catdead.png')
                   }
                   style={styles.catSprite}
@@ -1825,7 +1949,7 @@ export function PetsScreen() {
                         ? happyPuppyFrames[animationFrame % happyPuppyFrames.length]
                         : activeAnimation === 'play'
                         ? puppyPlayFrames[animationFrame % puppyPlayFrames.length]
-                        : pet.health === 1
+                        : displayedHealth === 1
                         ? puppyCryFrames[sadAnimationFrame % puppyCryFrames.length]
                         : puppySitFrames[currentCatFrame % puppySitFrames.length]
                       : pet.type === 'panda'
@@ -1835,7 +1959,7 @@ export function PetsScreen() {
                         ? pandaPetFrames[animationFrame % pandaPetFrames.length]
                         : activeAnimation === 'play'
                         ? pandaPlayFrames[animationFrame % pandaPlayFrames.length]
-                        : pet.health === 1
+                        : displayedHealth === 1
                         ? pandaCryFrames[sadAnimationFrame % pandaCryFrames.length]
                         : pandaSitFrames[currentCatFrame % pandaSitFrames.length]
                       : pet.type === 'koala'
@@ -1845,7 +1969,7 @@ export function PetsScreen() {
                         ? koalaPetFrames[animationFrame % koalaPetFrames.length]
                         : activeAnimation === 'play'
                         ? koalaPlayFrames[animationFrame % koalaPlayFrames.length]
-                        : pet.health === 1
+                        : displayedHealth === 1
                         ? koalaCryFrames[sadAnimationFrame % koalaCryFrames.length]
                         : koalaSitFrames[currentCatFrame % koalaSitFrames.length]
                       : activeAnimation === 'feed' 
@@ -1854,9 +1978,9 @@ export function PetsScreen() {
                       ? happyCatFrames[animationFrame]
                       : activeAnimation === 'play'
                       ? playCatFrames[animationFrame]
-                      : pet.health === 1
+                      : displayedHealth === 1
                       ? sadCatFrames[sadAnimationFrame]
-                      : pet.health === 2
+                      : displayedHealth === 2
                       ? hungryCatFrames[hungryAnimationFrame]
                       : catSitFrames[currentCatFrame]
                   }
@@ -2002,9 +2126,14 @@ export function PetsScreen() {
                 // Reload items from storage to ensure latest values
                 const tokens = await loadRevivalTokens();
                 const potions = await loadHealthPotions();
+                console.log('Button pressed - loaded tokens:', tokens, 'potions:', potions);
+                // Set state and wait for next render cycle before showing popup
                 setRevivalTokens(tokens);
                 setHealthPotions(potions);
-                setShowCoinsPopup(true);
+                // Delay to ensure state updates are complete before rendering popup
+                requestAnimationFrame(() => {
+                  setShowCoinsPopup(true);
+                });
               }}
               style={styles.bottomBarItem}
               activeOpacity={0.8}
@@ -2135,7 +2264,7 @@ export function PetsScreen() {
       />
 
           {/* Revive Popup - Inside screen, shows when cat dies */}
-          {showRevivePopup && pet && pet.health === 0 && (
+          {showRevivePopup && pet && displayedHealth === 0 && (
             <View style={styles.reviveOverlay}>
               <View style={styles.revivePopup}>
                 <TouchableOpacity
@@ -2207,7 +2336,9 @@ export function PetsScreen() {
           {/* Coins Popup - Shows coins count and items */}
           {showCoinsPopup && (
             <View style={styles.coinsOverlay}>
-              <View style={[styles.coinsPopup, { backgroundColor: `${(ALL_THEMES[petsTheme] || PETS_THEMES[petsTheme] || ALL_THEMES['serene']).color}DD`, borderColor: (ALL_THEMES[petsTheme] || PETS_THEMES[petsTheme] || ALL_THEMES['serene']).color }]}>
+              <View 
+                key={`coins-popup-${revivalTokens}-${healthPotions}`}
+                style={[styles.coinsPopup, { backgroundColor: `${(ALL_THEMES[petsTheme] || PETS_THEMES[petsTheme] || ALL_THEMES['serene']).color}DD`, borderColor: (ALL_THEMES[petsTheme] || PETS_THEMES[petsTheme] || ALL_THEMES['serene']).color }]}>
                 <TouchableOpacity
                   onPress={() => setShowCoinsPopup(false)}
                   style={styles.reviveCloseButton}
@@ -2219,41 +2350,59 @@ export function PetsScreen() {
                   {coins} COINS
                 </Text>
                 
-                {/* Items Section */}
+                {/* Items Section - Always show revival tokens and potions */}
                 <View style={styles.coinsItemsSection}>
                   {/* Revival Insurance */}
-                  <View style={styles.coinsItemRow}>
+                  <View style={styles.coinsItemRowFixed}>
                     <Image
                       source={require('../../assets/pets/shop/insurance.png')}
-                      style={styles.coinsItemIcon}
+                      style={styles.coinsItemIconSmall}
                       resizeMode="contain"
                     />
-                    <Text style={[styles.coinsItemText, styles.coinsPopupDarkText]}>
-                      REVIVAL: {revivalTokens}
+                    <Text style={[styles.coinsItemTextFixed, styles.coinsPopupDarkText]}>
+                      REVIVAL: {revivalTokens ?? 0}
                     </Text>
+                    {/* Revival USE button - only when pet is dead (0 hearts) and has tokens */}
+                    {revivalTokens > 0 && pet && displayedHealth === 0 ? (
+                      <TouchableOpacity
+                        onPress={() => {
+                          handleRevive();
+                          setShowCoinsPopup(false);
+                        }}
+                        style={styles.useItemButtonSmall}
+                        activeOpacity={0.8}
+                      >
+                        <Text style={styles.useItemButtonTextSmall}>USE</Text>
+                      </TouchableOpacity>
+                    ) : (
+                      <View style={styles.useItemButtonPlaceholder} />
+                    )}
                   </View>
                   
                   {/* Health Potion */}
-                  <View style={styles.coinsItemRow}>
+                  <View style={styles.coinsItemRowFixed}>
                     <Image
                       source={require('../../assets/pets/shop/potion.png')}
-                      style={styles.coinsItemIcon}
+                      style={styles.coinsItemIconSmall}
                       resizeMode="contain"
                     />
-                    <Text style={[styles.coinsItemText, styles.coinsPopupDarkText]}>
-                      POTIONS: {healthPotions}
+                    <Text style={[styles.coinsItemTextFixed, styles.coinsPopupDarkText]}>
+                      POTIONS: {healthPotions ?? 0}
                     </Text>
-                    {healthPotions > 0 && pet && pet.health > 0 && pet.health < 5 && (
+                    {/* Potion USE button - only when pet has 1-3 hearts */}
+                    {healthPotions > 0 && pet && displayedHealth >= 1 && displayedHealth <= 3 ? (
                       <TouchableOpacity
                         onPress={() => {
                           useHealthPotion();
                           setShowCoinsPopup(false);
                         }}
-                        style={styles.useItemButton}
+                        style={styles.useItemButtonSmall}
                         activeOpacity={0.8}
                       >
-                        <Text style={styles.useItemButtonText}>USE</Text>
+                        <Text style={styles.useItemButtonTextSmall}>USE</Text>
                       </TouchableOpacity>
+                    ) : (
+                      <View style={styles.useItemButtonPlaceholder} />
                     )}
                   </View>
                 </View>
@@ -2330,9 +2479,17 @@ export function PetsScreen() {
                   
                   {/* Pet Sprite */}
                   <View style={styles.shareableSpriteContainer}>
-                    {pet.health === 0 ? (
+                    {displayedHealth === 0 ? (
                       <Image
-                        source={require('../../assets/pets/cat/catdead.png')}
+                        source={
+                          pet.type === 'puppy'
+                            ? require('../../assets/pets/puppy/puppydead.png')
+                            : pet.type === 'panda'
+                            ? require('../../assets/pets/panda/pandadead.png')
+                            : pet.type === 'koala'
+                            ? require('../../assets/pets/koala/koaladead.png')
+                            : require('../../assets/pets/cat/catdead.png')
+                        }
                         style={styles.shareableSprite}
                         resizeMode="contain"
                       />
@@ -2341,6 +2498,10 @@ export function PetsScreen() {
                         source={
                           pet.type === 'puppy'
                             ? puppySitFrames[currentCatFrame % puppySitFrames.length]
+                            : pet.type === 'panda'
+                            ? pandaSitFrames[currentCatFrame % pandaSitFrames.length]
+                            : pet.type === 'koala'
+                            ? koalaSitFrames[currentCatFrame % koalaSitFrames.length]
                             : catSitFrames[currentCatFrame]
                         }
                         style={styles.shareableSprite}
@@ -3438,8 +3599,8 @@ const styles = StyleSheet.create({
   },
   coinsItemsSection: {
     width: '100%',
-    marginVertical: 16,
-    paddingHorizontal: 8,
+    marginVertical: 12,
+    paddingHorizontal: 4,
   },
   coinsItemRow: {
     flexDirection: 'row',
@@ -3456,6 +3617,42 @@ const styles = StyleSheet.create({
     fontFamily: 'PressStart2P_400Regular',
     fontSize: 8,
     flex: 1,
+    marginRight: 8,
+  },
+  coinsItemRowFixed: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 10,
+    paddingVertical: 4,
+    width: '100%',
+  },
+  coinsItemIconSmall: {
+    width: 24,
+    height: 24,
+    marginRight: 8,
+  },
+  coinsItemTextFixed: {
+    fontFamily: 'PressStart2P_400Regular',
+    fontSize: 7,
+    flex: 1,
+  },
+  useItemButtonSmall: {
+    backgroundColor: '#4CAF50',
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 8,
+    borderWidth: 2,
+    borderColor: '#388E3C',
+    minWidth: 50,
+    alignItems: 'center',
+  },
+  useItemButtonTextSmall: {
+    fontFamily: 'PressStart2P_400Regular',
+    fontSize: 6,
+    color: '#FFFFFF',
+  },
+  useItemButtonPlaceholder: {
+    minWidth: 50,
   },
   coinsPopupDarkText: {
     color: '#3D2914',
