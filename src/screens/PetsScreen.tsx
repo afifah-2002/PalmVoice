@@ -2321,7 +2321,7 @@ export function PetsScreen() {
                 >
                   <Text style={styles.reviveCloseButtonText}>✕</Text>
                 </TouchableOpacity>
-                <Text style={[styles.reviveText, { color: '#FFFFFF' }]}>LIFE BAR IS FULL!</Text>
+                <Text style={[styles.reviveText, { color: '#FFFFFF' }]}>HEALTH BAR IS FULL!</Text>
                 <TouchableOpacity
                   onPress={() => setShowFullHealthAlert(false)}
                   style={[styles.reviveButton, { backgroundColor: (ALL_THEMES[petsTheme] || PETS_THEMES[petsTheme] || ALL_THEMES['serene']).color, borderColor: '#FFFFFF' }]}
