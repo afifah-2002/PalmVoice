@@ -170,6 +170,18 @@ const puppySitFrames = [
   require('../../assets/pets/puppy/puppysit2.png'),
 ];
 
+// Panda sit animation frames
+const pandaSitFrames = [
+  require('../../assets/pets/panda/pandasit1.png'),
+  require('../../assets/pets/panda/pandasit2.png'),
+];
+
+// Koala sit animation frames
+const koalaSitFrames = [
+  require('../../assets/pets/koala/koalasit1.png'),
+  require('../../assets/pets/koala/koalasit2.png'),
+];
+
 export default function LauncherScreen() {
   const router = useRouter();
   const [pet, setPet] = useState<Pet | null>(null);
@@ -212,6 +224,10 @@ export default function LauncherScreen() {
     const interval = setInterval(() => {
       if (pet.type === 'puppy') {
         setCurrentCatFrame((prev) => (prev + 1) % puppySitFrames.length);
+      } else if (pet.type === 'panda') {
+        setCurrentCatFrame((prev) => (prev + 1) % pandaSitFrames.length);
+      } else if (pet.type === 'koala') {
+        setCurrentCatFrame((prev) => (prev + 1) % koalaSitFrames.length);
       } else {
         setCurrentCatFrame((prev) => (prev + 1) % catSitFrames.length);
       }
@@ -385,7 +401,11 @@ export default function LauncherScreen() {
                             source={
                               pet.type === 'puppy'
                                 ? puppySitFrames[currentCatFrame % puppySitFrames.length]
-                                : catSitFrames[currentCatFrame]
+                                : pet.type === 'panda'
+                                ? pandaSitFrames[currentCatFrame % pandaSitFrames.length]
+                                : pet.type === 'koala'
+                                ? koalaSitFrames[currentCatFrame % koalaSitFrames.length]
+                                : catSitFrames[currentCatFrame % catSitFrames.length]
                             }
                             style={styles.petSprite}
                             resizeMode="contain"
@@ -596,7 +616,7 @@ const styles = StyleSheet.create({
     flex: 1,
     alignItems: 'center',
     justifyContent: 'flex-start',
-    paddingTop: 12,
+    paddingTop: 40,
   },
   petActionsBottom: {
     alignItems: 'center',
@@ -657,7 +677,8 @@ const styles = StyleSheet.create({
   petSpriteContainer: {
     height: 80,
     width: 80,
-    marginBottom: 12,
+    marginTop: 20,
+    marginBottom: 20,
     justifyContent: 'center',
     alignItems: 'center',
   },
@@ -668,13 +689,13 @@ const styles = StyleSheet.create({
   petName: {
     fontFamily: 'PressStart2P_400Regular',
     fontSize: 12,
-    marginBottom: 16,
+    marginBottom: 20,
   },
   healthContainer: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
-    marginBottom: 16,
+    marginBottom: 20,
   },
   healthHeart: {
     width: 28,

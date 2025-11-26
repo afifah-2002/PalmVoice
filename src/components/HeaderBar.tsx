@@ -72,26 +72,8 @@ export function HeaderBar({
 
   return (
     <View style={[styles.headerBar, { backgroundColor: theme.headerBackground, borderBottomColor: theme.headerBorder }]}>
-      {/* Left: Mode Dropdown */}
+      {/* Left: Theme Dropdown */}
       <View style={styles.headerLeft}>
-        <View style={styles.modeDropdownContainer}>
-          <Dropdown
-            label={`${currentMode.toUpperCase()} MODE`}
-            value={currentMode}
-            options={modeOptionsWithAdd}
-            onSelect={handleModeSelect}
-            isOpen={isModeDropdownOpen}
-            onToggle={() => setIsModeDropdownOpen(!isModeDropdownOpen)}
-            position="left"
-            theme={theme}
-            customModes={customModes}
-            onEditMode={onEditMode}
-          />
-        </View>
-      </View>
-
-      {/* Center: Theme Dropdown */}
-      <View style={styles.headerCenter}>
         <Dropdown
           label="THEME"
           value={currentTheme}
@@ -99,7 +81,7 @@ export function HeaderBar({
           onSelect={onThemeChange}
           isOpen={isThemeDropdownOpen}
           onToggle={() => setIsThemeDropdownOpen(!isThemeDropdownOpen)}
-          position="center"
+          position="left"
           theme={theme}
         />
       </View>

@@ -12,6 +12,7 @@ import { useTheme } from '../contexts/ThemeContext';
 import { formatDate } from '../services/dateParser';
 import { playTaskComplete } from '../services/soundService';
 import { loadCoins, loadTasks, saveCoins, saveTasks } from '../services/storage';
+import { executeAutomation, AutomationType } from '../services/automationService';
 import { Task } from '../types/Task';
 
 export const TaskListScreen: React.FC = () => {
@@ -25,7 +26,6 @@ export const TaskListScreen: React.FC = () => {
   const [isSelectionMode, setIsSelectionMode] = useState(false);
   const [selectedTaskIds, setSelectedTaskIds] = useState<Set<string>>(new Set());
   const [deleteAlertVisible, setDeleteAlertVisible] = useState(false);
-  const [newTaskOptionsVisible, setNewTaskOptionsVisible] = useState(false);
   const [isTypingMode, setIsTypingMode] = useState(false);
   const [typedTaskText, setTypedTaskText] = useState('');
   const [typedTaskDescription, setTypedTaskDescription] = useState('');
@@ -43,6 +43,7 @@ export const TaskListScreen: React.FC = () => {
   const [overdueTask, setOverdueTask] = useState<Task | null>(null);
   const [showCoinPopup, setShowCoinPopup] = useState(false);
   const [coinPopupAmount, setCoinPopupAmount] = useState(1);
+  const [automationResult, setAutomationResult] = useState<{ visible: boolean; success: boolean; message: string }>({ visible: false, success: false, message: '' });
   
   // Animation refs for coin popup
   const coinPopupScale = useRef(new Animated.Value(0)).current;
@@ -60,14 +61,14 @@ export const TaskListScreen: React.FC = () => {
   // Icon mapping
   const iconMap: { [key: string]: any } = {
     reminders: require('../../assets/icons/reminders.png'),
-    alarm: require('../../assets/icons/alarm.png'),
+    trello: require('../../assets/icons/trello.png'),
     gmail: require('../../assets/icons/gmail.png'),
     canvas: require('../../assets/icons/canvas.png'),
     outlook: require('../../assets/icons/outlook.png'),
     fitness: require('../../assets/icons/fitness.png'),
     calendar: require('../../assets/icons/calendar.png'),
     whatsapp: require('../../assets/icons/whatsapp.png'),
-    phone: require('../../assets/icons/phone.png'),
+    drive: require('../../assets/icons/drive.png'),
     zoom: require('../../assets/icons/zoom.png'),
     teams: require('../../assets/icons/teams.png'),
     gmeet: require('../../assets/icons/gmeet.png'),
@@ -234,6 +235,36 @@ export const TaskListScreen: React.FC = () => {
     setShowIconPicker(true);
   };
 
+  const handleIconAutomation = async (task: Task, iconName: string) => {
+    // Map icon names to automation types
+    const automationTypes: { [key: string]: AutomationType } = {
+      calendar: 'calendar',
+      reminders: 'reminders',
+      gmail: 'gmail',
+      outlook: 'outlook',
+      whatsapp: 'whatsapp',
+      drive: 'drive',
+      trello: 'trello',
+      zoom: 'zoom',
+      teams: 'teams',
+      gmeet: 'gmeet',
+      canvas: 'canvas',
+      fitness: 'fitness',
+      paypal: 'paypal',
+      amazon: 'amazon',
+      uber: 'uber',
+    };
+
+    const automationType = automationTypes[iconName.toLowerCase()];
+    if (!automationType) {
+      setAutomationResult({ visible: true, success: false, message: `NO AUTOMATION FOR ${iconName.toUpperCase()}` });
+      return;
+    }
+
+    const result = await executeAutomation(automationType, task);
+    setAutomationResult({ visible: true, ...result });
+  };
+
   const isTaskOverdue = (task: Task): boolean => {
     if (!task.dueDate || task.completed) return false;
     const today = new Date();
@@ -383,16 +414,7 @@ export const TaskListScreen: React.FC = () => {
   };
 
   const handleNewTaskPress = () => {
-    setNewTaskOptionsVisible(true);
-  };
-
-  const handleRecordOption = () => {
-    setNewTaskOptionsVisible(false);
-    router.push('/record');
-  };
-
-  const handleTypeOption = () => {
-    setNewTaskOptionsVisible(false);
+    // Go directly to typing mode
     setIsTypingMode(true);
     setTypedTaskText('');
     setTypedTaskDescription('');
@@ -518,12 +540,20 @@ export const TaskListScreen: React.FC = () => {
       {item.icons && item.icons.length > 0 && (
         <View style={styles.taskIconsContainer}>
           {item.icons.map((iconName, index) => (
-            <Image 
+            <TouchableOpacity 
               key={index}
-              source={iconMap[iconName]} 
-              style={styles.taskIcon}
-              resizeMode="contain"
-            />
+              onPress={(e) => {
+                e.stopPropagation();
+                handleIconAutomation(item, iconName);
+              }}
+              activeOpacity={0.7}
+            >
+              <Image 
+                source={iconMap[iconName]} 
+                style={styles.taskIcon}
+                resizeMode="contain"
+              />
+            </TouchableOpacity>
           ))}
         </View>
       )}
@@ -1017,6 +1047,20 @@ export const TaskListScreen: React.FC = () => {
             theme={theme}
           />
 
+          {/* Automation Result Alert */}
+          <PixelAlert
+            visible={automationResult.visible}
+            title={automationResult.success ? 'SUCCESS' : 'ERROR'}
+            message={automationResult.message}
+            buttons={[
+              {
+                text: 'OK',
+                onPress: () => setAutomationResult({ visible: false, success: false, message: '' }),
+              },
+            ]}
+            theme={theme}
+          />
+
           {/* Completed Tasks View */}
           {showCompletedTasks && (
             <View style={[styles.completedTasksContainer, { backgroundColor: theme.screenBackground }]}>
@@ -1143,28 +1187,6 @@ export const TaskListScreen: React.FC = () => {
             theme={theme}
           />
 
-          {/* New Task Options Alert */}
-          <PixelAlert
-            visible={newTaskOptionsVisible}
-            title="NEW TASK"
-            message="CHOOSE INPUT METHOD"
-            buttons={[
-              {
-                text: 'CANCEL',
-                style: 'cancel',
-                onPress: () => setNewTaskOptionsVisible(false),
-              },
-              {
-                text: 'RECORD',
-                onPress: handleRecordOption,
-              },
-              {
-                text: 'TYPE',
-                onPress: handleTypeOption,
-              },
-            ]}
-            theme={theme}
-          />
 
           {/* Typing Mode with Keyboard */}
           {isTypingMode && (

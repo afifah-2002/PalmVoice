@@ -277,6 +277,7 @@ export function PetsScreen() {
   const [tryAgainActionType, setTryAgainActionType] = useState<'feed' | 'pet' | 'play' | null>(null);
   const tryAgainPulseAnim = useRef(new Animated.Value(1)).current;
   const [timeUntilMidnight, setTimeUntilMidnight] = useState('');
+  const [showHealthDecayTimer, setShowHealthDecayTimer] = useState(false);
   
   // Game state
   const [showGame, setShowGame] = useState(false);
@@ -351,7 +352,7 @@ export function PetsScreen() {
   // Puppy eat animation frames
   const puppyEatFrames = [
     require('../../assets/pets/puppy/puppyeat1.png'),
-    require('../../assets/pets/puppy/puppyeat2.jpg'),
+    require('../../assets/pets/puppy/puppyeat2.png'),
     require('../../assets/pets/puppy/puppyeat3.png'),
   ];
 
@@ -359,7 +360,7 @@ export function PetsScreen() {
   const puppyCryFrames = [
     require('../../assets/pets/puppy/puppycry1.png'),
     require('../../assets/pets/puppy/puppycry2.png'),
-    require('../../assets/pets/puppy/puppycry3.jpg'),
+    require('../../assets/pets/puppy/puppycry3.png'),
   ];
 
   // Puppy pet animation frames (happy)
@@ -372,8 +373,8 @@ export function PetsScreen() {
   // Puppy play animation frames
   const puppyPlayFrames = [
     require('../../assets/pets/puppy/puppyplay1.png'),
-    require('../../assets/pets/puppy/puppyplay2.jpg'),
-    require('../../assets/pets/puppy/puppyplay3.jpg'),
+    require('../../assets/pets/puppy/puppyplay2.png'),
+    require('../../assets/pets/puppy/puppyplay3.png'),
   ];
 
   // Panda animation frames
@@ -397,7 +398,7 @@ export function PetsScreen() {
   ];
   const pandaPlayFrames = [
     require('../../assets/pets/panda/pandaplay1.png'),
-    require('../../assets/pets/panda/pandaplay2.jpg'),
+    require('../../assets/pets/panda/pandaplay2.png'),
     require('../../assets/pets/panda/pandaplay3.png'),
   ];
 
@@ -418,8 +419,8 @@ export function PetsScreen() {
   ];
   const koalaPetFrames = [
     require('../../assets/pets/koala/koalapet1.png'),
-    require('../../assets/pets/koala/koalapet2.jpg'),
-    require('../../assets/pets/koala/koalapet3.jpg'),
+    require('../../assets/pets/koala/koalapet2.png'),
+    require('../../assets/pets/koala/koalapet3.png'),
   ];
   const koalaPlayFrames = [
     require('../../assets/pets/koala/koalaplay1.png'),
@@ -638,6 +639,45 @@ export function PetsScreen() {
     }
     
     return petData.health;
+  };
+
+  // Calculate time remaining until next heart decay
+  const getTimeUntilNextDecay = (petData: Pet): string => {
+    if (!petData) return '0H 0M';
+    
+    // If pet is dead, no decay
+    if (getCurrentHealth(petData) === 0) return 'PET IS DEAD';
+    
+    const lastInteraction = Math.max(
+      petData.lastFed || 0,
+      petData.lastPet || 0,
+      petData.lastPlay || 0,
+      petData.lastPotion || 0,
+      petData.lastRevival || 0
+    );
+    
+    const now = Date.now();
+    const hoursPerHeart = 4.8;
+    const millisecondsPerHeart = hoursPerHeart * 60 * 60 * 1000;
+    
+    let elapsedTime: number;
+    if (lastInteraction > 0) {
+      elapsedTime = now - lastInteraction;
+    } else if (petData.createdAt) {
+      elapsedTime = now - petData.createdAt;
+    } else {
+      return '0H 0M';
+    }
+    
+    // Calculate how much time has passed in the current decay cycle
+    const timeInCurrentCycle = elapsedTime % millisecondsPerHeart;
+    const timeRemaining = millisecondsPerHeart - timeInCurrentCycle;
+    
+    // Convert to hours and minutes
+    const hours = Math.floor(timeRemaining / (60 * 60 * 1000));
+    const minutes = Math.floor((timeRemaining % (60 * 60 * 1000)) / (60 * 1000));
+    
+    return `${hours}H ${minutes}M`;
   };
 
   // Force re-render every minute to update displayed health
@@ -1803,7 +1843,12 @@ export function PetsScreen() {
             {/* Health Bar and Coins - Top Right */}
             <View style={styles.topRightContainer}>
               {pet && (
-                <View key={`health-${displayedHealth}-${pet.lastFed}-${pet.lastPet}-${pet.lastPlay}`} style={styles.healthBarContainer}>
+                <TouchableOpacity 
+                  key={`health-${displayedHealth}-${pet.lastFed}-${pet.lastPet}-${pet.lastPlay}`} 
+                  style={styles.healthBarContainer}
+                  onPress={() => setShowHealthDecayTimer(true)}
+                  activeOpacity={0.7}
+                >
                   <Image 
                     key={`heart-${displayedHealth}`}
                     source={
@@ -1830,7 +1875,7 @@ export function PetsScreen() {
                     style={styles.healthBarImage}
                     resizeMode="contain"
                   />
-              </View>
+              </TouchableOpacity>
               )}
               
               {/* Actions Dropdown */}
@@ -2324,6 +2369,34 @@ export function PetsScreen() {
                 <Text style={[styles.reviveText, { color: '#FFFFFF' }]}>HEALTH BAR IS FULL!</Text>
                 <TouchableOpacity
                   onPress={() => setShowFullHealthAlert(false)}
+                  style={[styles.reviveButton, { backgroundColor: (ALL_THEMES[petsTheme] || PETS_THEMES[petsTheme] || ALL_THEMES['serene']).color, borderColor: '#FFFFFF' }]}
+                  activeOpacity={0.8}
+                >
+                  <Text style={[styles.reviveButtonText, { color: '#000000' }]}>OK</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          )}
+
+          {/* Health Decay Timer Popup */}
+          {showHealthDecayTimer && pet && (
+            <View style={styles.reviveOverlay}>
+              <View style={[styles.coinsPopup, { backgroundColor: `${(ALL_THEMES[petsTheme] || PETS_THEMES[petsTheme] || ALL_THEMES['serene']).color}DD`, borderColor: (ALL_THEMES[petsTheme] || PETS_THEMES[petsTheme] || ALL_THEMES['serene']).color }]}>
+                <TouchableOpacity
+                  onPress={() => setShowHealthDecayTimer(false)}
+                  style={styles.reviveCloseButton}
+                  activeOpacity={0.8}
+                >
+                  <Text style={styles.reviveCloseButtonText}>✕</Text>
+                </TouchableOpacity>
+                <Text style={[styles.coinsText, styles.coinsPopupDarkText]}>
+                  NEXT HEART LOSS
+                </Text>
+                <Text style={[styles.healthTimerText, styles.coinsPopupDarkText]}>
+                  {getTimeUntilNextDecay(pet)}
+                </Text>
+                <TouchableOpacity
+                  onPress={() => setShowHealthDecayTimer(false)}
                   style={[styles.reviveButton, { backgroundColor: (ALL_THEMES[petsTheme] || PETS_THEMES[petsTheme] || ALL_THEMES['serene']).color, borderColor: '#FFFFFF' }]}
                   activeOpacity={0.8}
                 >
@@ -3570,7 +3643,8 @@ const styles = StyleSheet.create({
     borderRadius: 8,
     padding: 24,
     alignItems: 'center',
-    minWidth: 280,
+    minWidth: 220,
+    maxWidth: 260,
   },
   coinsText: {
     fontFamily: 'PressStart2P_400Regular',
@@ -3580,6 +3654,12 @@ const styles = StyleSheet.create({
     textShadowOffset: { width: 2, height: 2 },
     textShadowRadius: 4,
     marginBottom: 16,
+  },
+  healthTimerText: {
+    fontFamily: 'PressStart2P_400Regular',
+    fontSize: 18,
+    textAlign: 'center',
+    marginBottom: 20,
   },
   playToWinButton: {
     borderWidth: 3,

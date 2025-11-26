@@ -9,7 +9,28 @@
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
     "ios": {
-      "supportsTablet": true
+      "supportsTablet": true,
+      "infoPlist": {
+        "NSCalendarsUsageDescription": "PalmVoice needs access to your calendar to create events from tasks.",
+        "NSRemindersUsageDescription": "PalmVoice needs access to reminders to create reminders from tasks.",
+        "LSApplicationQueriesSchemes": [
+          "googlegmail",
+          "ms-outlook",
+          "whatsapp",
+          "trello",
+          "googledrive",
+          "zoomus",
+          "msteams",
+          "comgooglemeet",
+          "canvas-student",
+          "x-apple-health",
+          "paypal",
+          "com.amazon.mobile.shopping",
+          "uber",
+          "calshow",
+          "x-apple-reminderkit"
+        ]
+      }
     },
     "android": {
       "adaptiveIcon": {

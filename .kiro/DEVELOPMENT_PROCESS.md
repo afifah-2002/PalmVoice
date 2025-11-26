@@ -162,6 +162,17 @@ Once MCP is available:
 - Auto-generate steering docs from codebase analysis
 
 ---
+### 6. Agent-Guided Implementation
+
+Created agent file: `app-integrations-builder.md` with complete specifications for iOS app integrations.
+
+Used agent as implementation guide in Cursor to build:
+- Calendar integration (creates actual events with expo-calendar)
+- Reminders integration (creates iOS reminders)
+- Gmail/Outlook/WhatsApp pre-fill functionality
+- Generic app openers for Zoom, Teams, etc.
+
+**Result:** All 14 app integrations working in 1 hour by following agent specifications.
 
 ## Key Learnings
 
