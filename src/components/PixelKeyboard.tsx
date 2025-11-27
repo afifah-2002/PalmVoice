@@ -1,6 +1,7 @@
 import { PressStart2P_400Regular, useFonts } from '@expo-google-fonts/press-start-2p';
-import React, { useRef, useState } from 'react';
-import { Animated, Dimensions, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import * as Haptics from 'expo-haptics';
+import React, { useState } from 'react';
+import { Dimensions, StyleSheet, Text, Pressable, TouchableOpacity, View } from 'react-native';
 import { PalmTheme } from '../constants/palmThemes';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
@@ -103,27 +104,21 @@ export function PixelKeyboard({
     isReturn?: boolean;
     isExtraLarge?: boolean;
   }) => {
-    const pressAnim = useRef(new Animated.Value(0)).current;
-
+    const [showPreview, setShowPreview] = useState(false);
+    
+    // Only show preview for single character keys (letters, numbers, symbols)
+    const shouldShowPreview = keyName.length === 1 || (keyName.length === 1 && !isSpecial && !isWide && !isReturn);
+    
     const handlePressIn = () => {
-      Animated.spring(pressAnim, {
-        toValue: 1,
-        useNativeDriver: true,
-        tension: 300,
-        friction: 10,
-      }).start();
-    };
-
-    const handlePressOut = () => {
-      Animated.spring(pressAnim, {
-        toValue: 0,
-        useNativeDriver: true,
-        tension: 300,
-        friction: 10,
-      }).start();
-    };
-
-    const handlePress = () => {
+      // Haptic feedback - like iPhone keyboard!
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+      
+      // Show key preview for character keys
+      if (shouldShowPreview) {
+        setShowPreview(true);
+      }
+      
+      // Trigger key action immediately on touch - no delay!
       if (keyName === 'SHIFT') {
         toggleShift();
       } else if (keyName === 'BACKSPACE') {
@@ -140,21 +135,14 @@ export function PixelKeyboard({
         switchToSymbols();
       } else if (keyName === 'MIC' || keyName === 'EMOJI') {
         // Placeholder for future functionality
-        return;
       } else {
         handleKeyPress(keyName);
       }
     };
-
-    const translateY = pressAnim.interpolate({
-      inputRange: [0, 1],
-      outputRange: [0, 2],
-    });
-
-    const scale = pressAnim.interpolate({
-      inputRange: [0, 1],
-      outputRange: [1, 0.95],
-    });
+    
+    const handlePressOut = () => {
+      setShowPreview(false);
+    };
 
     let displayText = keyName;
     if (keyName === 'MIC') {
@@ -174,20 +162,21 @@ export function PixelKeyboard({
     }
 
     return (
-      <Animated.View
-        style={[
-          {
-            transform: [{ translateY }, { scale }],
-          },
-        ]}
-      >
-        <TouchableOpacity
+      <View style={{ position: 'relative' }}>
+        {/* Key Preview Popup - iPhone style */}
+        {showPreview && shouldShowPreview && (
+          <View style={[styles.keyPreview, { backgroundColor: theme.gridBoxBackground, borderColor: theme.gridBoxBorder }]}>
+            <Text style={[styles.keyPreviewText, { color: theme.iconText }]}>
+              {displayText.toUpperCase()}
+            </Text>
+            <View style={[styles.keyPreviewArrow, { backgroundColor: theme.gridBoxBackground }]} />
+          </View>
+        )}
+        <Pressable
           onPressIn={handlePressIn}
           onPressOut={handlePressOut}
-          onPress={handlePress}
-          activeOpacity={0.6}
-          hitSlop={{ top: 5, bottom: 5, left: 5, right: 5 }}
-          style={[
+          hitSlop={{ top: 6, bottom: 6, left: 3, right: 3 }}
+          style={({ pressed }) => [
             styles.key,
             isWide && styles.wideKey,
             isSmallWide && styles.smallWideKey,
@@ -200,11 +189,12 @@ export function PixelKeyboard({
             isExtraLarge && styles.extraLargeKey,
             {
               backgroundColor: keyName === 'SHIFT' && isShift ? theme.dropdownActiveBackground : theme.gridBoxBackground,
-              // 3D effect: light top/left, dark bottom/right
               borderTopColor: '#E0F0C8',
               borderLeftColor: '#E0F0C8',
               borderRightColor: theme.gridBoxBorder,
               borderBottomColor: theme.gridBoxBorder,
+              opacity: pressed ? 0.7 : 1,
+              transform: pressed ? [{ scale: 0.95 }] : [{ scale: 1 }],
             },
           ]}
         >
@@ -226,8 +216,8 @@ export function PixelKeyboard({
               {displayText}
             </Text>
           )}
-        </TouchableOpacity>
-      </Animated.View>
+        </Pressable>
+      </View>
     );
   };
 
@@ -542,5 +532,34 @@ const styles = StyleSheet.create({
   },
   extraLargeKeyText: {
     fontSize: 13,
+  },
+  keyPreview: {
+    position: 'absolute',
+    bottom: 50,
+    left: -8,
+    width: 48,
+    height: 56,
+    borderRadius: 8,
+    borderWidth: 2,
+    justifyContent: 'center',
+    alignItems: 'center',
+    zIndex: 1000,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 4,
+    elevation: 8,
+  },
+  keyPreviewText: {
+    fontFamily: 'PressStart2P_400Regular',
+    fontSize: 22,
+    fontWeight: 'bold',
+  },
+  keyPreviewArrow: {
+    position: 'absolute',
+    bottom: -8,
+    width: 16,
+    height: 16,
+    transform: [{ rotate: '45deg' }],
   },
 });

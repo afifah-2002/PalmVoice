@@ -29,6 +29,7 @@ export const TaskListScreen: React.FC = () => {
   const [isTypingMode, setIsTypingMode] = useState(false);
   const [typedTaskText, setTypedTaskText] = useState('');
   const [typedTaskDescription, setTypedTaskDescription] = useState('');
+  const [cursorPosition, setCursorPosition] = useState(0);
   const [isKeyboardVisibleInTyping, setIsKeyboardVisibleInTyping] = useState(true);
   const [typedTaskDueDate, setTypedTaskDueDate] = useState<Date | undefined>(undefined);
   const [showDatePicker, setShowDatePicker] = useState(false);
@@ -419,6 +420,7 @@ export const TaskListScreen: React.FC = () => {
     setTypedTaskText('');
     setTypedTaskDescription('');
     setTypedTaskDueDate(undefined);
+    setCursorPosition(0);
     setIsEditingTitle(true);
     setIsKeyboardVisibleInTyping(true);
   };
@@ -1211,7 +1213,10 @@ export const TaskListScreen: React.FC = () => {
                 {/* Title/Description Toggle */}
                 <View style={[styles.fieldToggleContainer, { borderBottomColor: theme.headerBorder }]}>
                   <TouchableOpacity 
-                    onPress={() => setIsEditingTitle(true)}
+                    onPress={() => {
+                      setIsEditingTitle(true);
+                      setCursorPosition(typedTaskText.length);
+                    }}
                     style={[
                       styles.fieldToggleButton,
                       { 
@@ -1223,7 +1228,10 @@ export const TaskListScreen: React.FC = () => {
                     <Text style={[styles.fieldToggleText, { color: theme.modalText }]}>TITLE</Text>
                   </TouchableOpacity>
                   <TouchableOpacity 
-                    onPress={() => setIsEditingTitle(false)}
+                    onPress={() => {
+                      setIsEditingTitle(false);
+                      setCursorPosition(typedTaskDescription.length);
+                    }}
                     style={[
                       styles.fieldToggleButton,
                       { 
@@ -1238,12 +1246,22 @@ export const TaskListScreen: React.FC = () => {
 
                 <TouchableOpacity
                   activeOpacity={0.7}
-                  onPress={() => setIsKeyboardVisibleInTyping(true)}
+                  onPress={() => {
+                    setIsKeyboardVisibleInTyping(true);
+                    // Set cursor to end when tapping the area
+                    const currentText = isEditingTitle ? typedTaskText : typedTaskDescription;
+                    setCursorPosition(currentText.length);
+                  }}
                   style={[styles.typingArea, { backgroundColor: theme.graffitiBackground, borderColor: theme.graffitiBorder }]}
                 >
                   <View style={styles.typingAreaContent}>
                     <Text style={[styles.typedText, { color: theme.graffitiCursor }]}>
-                      {isEditingTitle ? (typedTaskText || ' ') : (typedTaskDescription || ' ')}
+                      {(() => {
+                        const currentText = isEditingTitle ? typedTaskText : typedTaskDescription;
+                        const beforeCursor = currentText.slice(0, cursorPosition);
+                        const afterCursor = currentText.slice(cursorPosition);
+                        return beforeCursor + '|' + afterCursor || '|';
+                      })()}
                     </Text>
                   </View>
                 </TouchableOpacity>
@@ -1339,30 +1357,50 @@ export const TaskListScreen: React.FC = () => {
                 theme={theme}
                 onKeyPress={(key) => {
                   if (isEditingTitle) {
-                    setTypedTaskText((prev) => prev + key);
+                    setTypedTaskText((prev) => {
+                      const newText = prev.slice(0, cursorPosition) + key + prev.slice(cursorPosition);
+                      setCursorPosition(cursorPosition + 1);
+                      return newText;
+                    });
                   } else {
-                    setTypedTaskDescription((prev) => prev + key);
+                    setTypedTaskDescription((prev) => {
+                      const newText = prev.slice(0, cursorPosition) + key + prev.slice(cursorPosition);
+                      setCursorPosition(cursorPosition + 1);
+                      return newText;
+                    });
                   }
                 }}
                 onBackspace={() => {
-                  if (isEditingTitle) {
-                    setTypedTaskText((prev) => prev.slice(0, -1));
-                  } else {
-                    setTypedTaskDescription((prev) => prev.slice(0, -1));
+                  if (cursorPosition > 0) {
+                    if (isEditingTitle) {
+                      setTypedTaskText((prev) => prev.slice(0, cursorPosition - 1) + prev.slice(cursorPosition));
+                    } else {
+                      setTypedTaskDescription((prev) => prev.slice(0, cursorPosition - 1) + prev.slice(cursorPosition));
+                    }
+                    setCursorPosition(cursorPosition - 1);
                   }
                 }}
                 onEnter={() => {
                   if (isEditingTitle && typedTaskText.trim()) {
                     setIsEditingTitle(false);
+                    setCursorPosition(typedTaskDescription.length);
                   } else {
                     handleSaveTypedTask();
                   }
                 }}
                 onSpace={() => {
                   if (isEditingTitle) {
-                    setTypedTaskText((prev) => prev + ' ');
+                    setTypedTaskText((prev) => {
+                      const newText = prev.slice(0, cursorPosition) + ' ' + prev.slice(cursorPosition);
+                      setCursorPosition(cursorPosition + 1);
+                      return newText;
+                    });
                   } else {
-                    setTypedTaskDescription((prev) => prev + ' ');
+                    setTypedTaskDescription((prev) => {
+                      const newText = prev.slice(0, cursorPosition) + ' ' + prev.slice(cursorPosition);
+                      setCursorPosition(cursorPosition + 1);
+                      return newText;
+                    });
                   }
                 }}
                 onClose={hideKeyboardInTyping}

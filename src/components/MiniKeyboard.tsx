@@ -1,4 +1,5 @@
 import { PressStart2P_400Regular, useFonts } from '@expo-google-fonts/press-start-2p';
+import * as Haptics from 'expo-haptics';
 import React, { useState } from 'react';
 import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { PalmTheme } from '../constants/palmThemes';
@@ -80,7 +81,11 @@ export function MiniKeyboard({
     isReturn?: boolean;
     isExtraLarge?: boolean;
   }) => {
-    const handlePress = () => {
+    const handlePressIn = () => {
+      // Haptic feedback - like iPhone keyboard!
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+      
+      // Trigger key action immediately on touch (not waiting for release)
       if (keyName === 'SHIFT') {
         setIsShift(!isShift);
       } else if (keyName === 'BACKSPACE') {
@@ -100,7 +105,6 @@ export function MiniKeyboard({
         setIsShift(false);
       } else if (keyName === 'EMOJI') {
         // Placeholder for future functionality
-        return;
       } else {
         handleKeyPress(keyName);
       }
@@ -123,8 +127,10 @@ export function MiniKeyboard({
 
     return (
       <TouchableOpacity
-        onPress={handlePress}
-        activeOpacity={0.6}
+        onPressIn={handlePressIn}
+        delayPressIn={0}
+        activeOpacity={0.7}
+        hitSlop={{ top: 8, bottom: 8, left: 4, right: 4 }}
         style={[
           styles.key,
           isWide && styles.wideKey,
