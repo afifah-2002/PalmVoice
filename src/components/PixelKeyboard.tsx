@@ -30,6 +30,7 @@ export function PixelKeyboard({
   });
   const [isShift, setIsShift] = useState(false);
   const [keyboardMode, setKeyboardMode] = useState<'letters' | 'numbers' | 'symbols'>('letters');
+  const [activeKey, setActiveKey] = useState<{ key: string; x: number; y: number } | null>(null);
 
   if (!fontsLoaded) {
     return null;
@@ -104,18 +105,18 @@ export function PixelKeyboard({
     isReturn?: boolean;
     isExtraLarge?: boolean;
   }) => {
-    const [showPreview, setShowPreview] = useState(false);
-    
     // Only show preview for single character keys (letters, numbers, symbols)
-    const shouldShowPreview = keyName.length === 1 || (keyName.length === 1 && !isSpecial && !isWide && !isReturn);
+    const shouldShowPreview = keyName.length === 1;
+    const isPressed = activeKey?.key === keyName;
     
-    const handlePressIn = () => {
+    const handlePressIn = (event: any) => {
       // Haptic feedback - like iPhone keyboard!
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
       
       // Show key preview for character keys
       if (shouldShowPreview) {
-        setShowPreview(true);
+        const { pageX, pageY } = event.nativeEvent;
+        setActiveKey({ key: keyName, x: pageX, y: pageY });
       }
       
       // Trigger key action immediately on touch - no delay!
@@ -141,7 +142,7 @@ export function PixelKeyboard({
     };
     
     const handlePressOut = () => {
-      setShowPreview(false);
+      setActiveKey(null);
     };
 
     let displayText = keyName;
@@ -162,62 +163,52 @@ export function PixelKeyboard({
     }
 
     return (
-      <View style={{ position: 'relative' }}>
-        {/* Key Preview Popup - iPhone style */}
-        {showPreview && shouldShowPreview && (
-          <View style={[styles.keyPreview, { backgroundColor: theme.gridBoxBackground, borderColor: theme.gridBoxBorder }]}>
-            <Text style={[styles.keyPreviewText, { color: theme.iconText }]}>
-              {displayText.toUpperCase()}
-            </Text>
-            <View style={[styles.keyPreviewArrow, { backgroundColor: theme.gridBoxBackground }]} />
-          </View>
+      <Pressable
+        onPressIn={handlePressIn}
+        onPressOut={handlePressOut}
+        hitSlop={{ top: 6, bottom: 6, left: 3, right: 3 }}
+        style={({ pressed }) => [
+          styles.key,
+          isWide && styles.wideKey,
+          isSmallWide && styles.smallWideKey,
+          isLarge && styles.largeKey,
+          isMediumLarge && styles.mediumLargeKey,
+          isSpecial && styles.specialKey,
+          isEmoji && styles.emojiKey,
+          isMedium && styles.mediumKey,
+          isReturn && styles.returnKey,
+          isExtraLarge && styles.extraLargeKey,
+          {
+            backgroundColor: keyName === 'SHIFT' && isShift ? theme.dropdownActiveBackground : theme.gridBoxBackground,
+            borderTopColor: '#E0F0C8',
+            borderLeftColor: '#E0F0C8',
+            borderRightColor: theme.gridBoxBorder,
+            borderBottomColor: theme.gridBoxBorder,
+            opacity: pressed ? 0.85 : 1,
+            transform: pressed ? [{ scale: 1.15 }, { translateY: -8 }] : [{ scale: 1 }, { translateY: 0 }],
+            zIndex: pressed ? 100 : 1,
+          },
+        ]}
+      >
+        {isEmoji ? (
+          <Text style={styles.emojiText}>{displayText}</Text>
+        ) : (
+          <Text
+            style={[
+              styles.keyText,
+              { color: theme.iconText },
+              isWide && styles.wideKeyText,
+              isSpecial && styles.specialKeyText,
+              isMedium && styles.mediumKeyText,
+              isReturn && styles.returnText,
+              isExtraLarge && styles.extraLargeKeyText,
+              keyName === 'BACKSPACE' && styles.backspaceText,
+            ]}
+          >
+            {displayText}
+          </Text>
         )}
-        <Pressable
-          onPressIn={handlePressIn}
-          onPressOut={handlePressOut}
-          hitSlop={{ top: 6, bottom: 6, left: 3, right: 3 }}
-          style={({ pressed }) => [
-            styles.key,
-            isWide && styles.wideKey,
-            isSmallWide && styles.smallWideKey,
-            isLarge && styles.largeKey,
-            isMediumLarge && styles.mediumLargeKey,
-            isSpecial && styles.specialKey,
-            isEmoji && styles.emojiKey,
-            isMedium && styles.mediumKey,
-            isReturn && styles.returnKey,
-            isExtraLarge && styles.extraLargeKey,
-            {
-              backgroundColor: keyName === 'SHIFT' && isShift ? theme.dropdownActiveBackground : theme.gridBoxBackground,
-              borderTopColor: '#E0F0C8',
-              borderLeftColor: '#E0F0C8',
-              borderRightColor: theme.gridBoxBorder,
-              borderBottomColor: theme.gridBoxBorder,
-              opacity: pressed ? 0.7 : 1,
-              transform: pressed ? [{ scale: 0.95 }] : [{ scale: 1 }],
-            },
-          ]}
-        >
-          {isEmoji ? (
-            <Text style={styles.emojiText}>{displayText}</Text>
-          ) : (
-            <Text
-              style={[
-                styles.keyText,
-                { color: theme.iconText },
-                isWide && styles.wideKeyText,
-                isSpecial && styles.specialKeyText,
-                isMedium && styles.mediumKeyText,
-                isReturn && styles.returnText,
-                isExtraLarge && styles.extraLargeKeyText,
-                keyName === 'BACKSPACE' && styles.backspaceText,
-              ]}
-            >
-              {displayText}
-            </Text>
-          )}
-        </Pressable>
-      </View>
+      </Pressable>
     );
   };
 
@@ -394,7 +385,8 @@ const styles = StyleSheet.create({
     borderRightWidth: 2,
     borderColor: '#6B8537',
     borderTopColor: 'transparent',
-    zIndex: 1002, // Higher than modal content to appear on top
+    zIndex: 1002,
+    overflow: 'visible',
   },
   keyboardHeader: {
     flexDirection: 'row',
@@ -423,6 +415,7 @@ const styles = StyleSheet.create({
     paddingVertical: 8,
     paddingHorizontal: 4,
     maxHeight: 300,
+    overflow: 'visible',
   },
   keyRow: {
     flexDirection: 'row',
@@ -432,6 +425,8 @@ const styles = StyleSheet.create({
     paddingLeft: 0,
     paddingRight: 6,
     width: '100%',
+    overflow: 'visible',
+    zIndex: 1,
   },
   bottomRow: {
     flexDirection: 'row',
@@ -532,34 +527,5 @@ const styles = StyleSheet.create({
   },
   extraLargeKeyText: {
     fontSize: 13,
-  },
-  keyPreview: {
-    position: 'absolute',
-    bottom: 50,
-    left: -8,
-    width: 48,
-    height: 56,
-    borderRadius: 8,
-    borderWidth: 2,
-    justifyContent: 'center',
-    alignItems: 'center',
-    zIndex: 1000,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 4,
-    elevation: 8,
-  },
-  keyPreviewText: {
-    fontFamily: 'PressStart2P_400Regular',
-    fontSize: 22,
-    fontWeight: 'bold',
-  },
-  keyPreviewArrow: {
-    position: 'absolute',
-    bottom: -8,
-    width: 16,
-    height: 16,
-    transform: [{ rotate: '45deg' }],
   },
 });

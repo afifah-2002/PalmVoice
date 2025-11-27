@@ -30,6 +30,7 @@ export const TaskListScreen: React.FC = () => {
   const [typedTaskText, setTypedTaskText] = useState('');
   const [typedTaskDescription, setTypedTaskDescription] = useState('');
   const [cursorPosition, setCursorPosition] = useState(0);
+  const [cursorVisible, setCursorVisible] = useState(true);
   const [isKeyboardVisibleInTyping, setIsKeyboardVisibleInTyping] = useState(true);
   const [typedTaskDueDate, setTypedTaskDueDate] = useState<Date | undefined>(undefined);
   const [showDatePicker, setShowDatePicker] = useState(false);
@@ -91,6 +92,15 @@ export const TaskListScreen: React.FC = () => {
       saveTasks(tasks);
     }
   }, [tasks, isLoading]);
+
+  // Blinking cursor effect
+  useEffect(() => {
+    const blinkInterval = setInterval(() => {
+      setCursorVisible(prev => !prev);
+    }, 530); // Blink every 530ms like iPhone
+    
+    return () => clearInterval(blinkInterval);
+  }, []);
 
   const loadTasksFromStorage = async () => {
     try {
@@ -1260,7 +1270,8 @@ export const TaskListScreen: React.FC = () => {
                         const currentText = isEditingTitle ? typedTaskText : typedTaskDescription;
                         const beforeCursor = currentText.slice(0, cursorPosition);
                         const afterCursor = currentText.slice(cursorPosition);
-                        return beforeCursor + '|' + afterCursor || '|';
+                        const cursor = cursorVisible ? '|' : ' ';
+                        return beforeCursor + cursor + afterCursor || cursor;
                       })()}
                     </Text>
                   </View>
