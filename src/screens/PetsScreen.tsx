@@ -490,19 +490,28 @@ export function PetsScreen() {
             calculatedHealth = Math.max(0, 5 - heartsLost);
           }
           
-          // Update pet with correct health and new fields
+          // IMPORTANT: Don't save the calculated health back to storage!
+          // The stored health is the baseline from the last interaction.
+          // We only calculate health for display - we should NOT overwrite the stored baseline.
+          // Only update if we need to add missing fields (originalCreatedAt, etc.)
           const correctedPet = {
             ...petWithOriginalCreated,
-            health: calculatedHealth,
+            // Keep the ORIGINAL stored health as the baseline - don't overwrite it!
+            health: petWithOriginalCreated.health,
           };
           
-          if (savedPet.health !== calculatedHealth || !savedPet.originalCreatedAt) {
-            console.log(`Pet updated on load: health ${savedPet.health} -> ${calculatedHealth}, originalCreatedAt set`);
+          // Only save if we're adding missing metadata fields, NOT if health changed
+          if (!savedPet.originalCreatedAt || !savedPet.lastPotion || !savedPet.lastRevival) {
+            console.log(`Pet metadata updated on load: adding missing fields`);
             setPet(correctedPet as Pet);
             savePet(correctedPet, correctedPet.type);
           } else {
+            // Just set the pet state - don't save calculated health
             setPet(correctedPet as Pet);
           }
+          
+          // Log what we're working with
+          console.log(`[LOAD] Pet loaded - Stored health baseline: ${petWithOriginalCreated.health}, Calculated current health: ${calculatedHealth}, Last interaction: ${new Date(lastInteraction).toLocaleString()}`);
         }
       }
     });
@@ -631,7 +640,16 @@ export function PetsScreen() {
       // Health declines from the stored health (which was set at last interaction)
       const elapsedSinceInteraction = now - lastInteraction;
       const heartsLost = Math.floor(elapsedSinceInteraction / millisecondsPerHeart);
-      return Math.max(0, petData.health - heartsLost);
+      const calculatedHealth = Math.max(0, petData.health - heartsLost);
+      
+      // Debug logging to help diagnose issues
+      const hoursElapsed = elapsedSinceInteraction / (60 * 60 * 1000);
+      if (hoursElapsed > 2) { // Only log if significant time has passed
+        console.log(`[HEALTH CALC] Pet: ${petData.name}, Stored health: ${petData.health}, Hours since interaction: ${hoursElapsed.toFixed(2)}, Hearts lost: ${heartsLost}, Calculated health: ${calculatedHealth}`);
+        console.log(`[HEALTH CALC] Timestamps - lastFed: ${petData.lastFed}, lastPet: ${petData.lastPet}, lastPlay: ${petData.lastPlay}, lastPotion: ${petData.lastPotion}, lastRevival: ${petData.lastRevival}`);
+      }
+      
+      return calculatedHealth;
     } else if (petData.createdAt) {
       // New pet with no interactions - decline from creation (starting at 5 hearts)
       const elapsedTime = now - petData.createdAt;
@@ -1063,7 +1081,10 @@ export function PetsScreen() {
     if (!pet) return;
     
     const currentHealth = getCurrentHealth(pet);
+    console.log('Using potion - current health:', currentHealth, 'stored health:', pet.health, 'lastPotion:', pet.lastPotion);
+    
     if (healthPotions <= 0 || currentHealth >= 5 || currentHealth === 0) {
+      console.log('Cannot use potion - potions:', healthPotions, 'currentHealth:', currentHealth);
       return;
     }
 
@@ -1073,17 +1094,22 @@ export function PetsScreen() {
     // Using potion counts as an interaction, resets the decline clock
     const updatedPet: Pet = {
       ...pet,
-      health: newHealth, // This becomes the new baseline
-      lastPotion: now, // Track when potion was used
-      // Keep other timestamps as they were - only lastPotion resets the clock
+      health: newHealth, // This becomes the new baseline for health calculation
+      lastPotion: now, // Track when potion was used - this resets the decay clock
     };
+    
+    console.log('Potion applied - new health:', newHealth, 'lastPotion:', now);
+    
+    // IMPORTANT: Await the save to prevent race conditions
+    await savePet(updatedPet, updatedPet.type);
     setPet(updatedPet);
-    savePet(updatedPet, updatedPet.type);
 
     const newPotions = healthPotions - 1;
     setHealthPotions(newPotions);
     await saveHealthPotions(newPotions);
-    console.log('Used potion, new health:', newHealth, 'lastPotion updated to:', now);
+    
+    // Verify the save worked
+    console.log('Potion complete - pet state updated, health should be:', getCurrentHealth(updatedPet));
   };
 
   // Helper function to render a theme item
@@ -1382,7 +1408,7 @@ export function PetsScreen() {
     }
   };
 
-  const handleFeed = () => {
+  const handleFeed = async () => {
     if (pet) {
       const currentHealth = getCurrentHealth(pet);
       if (currentHealth === 0) {
@@ -1412,16 +1438,24 @@ export function PetsScreen() {
           lastFed: now, // This resets the decline clock
           lastPet: pet.lastPet,
           lastPlay: pet.lastPlay,
+          lastPotion: pet.lastPotion, // Preserve potion timestamp
+          lastRevival: pet.lastRevival, // Preserve revival timestamp
           createdAt: pet.createdAt, // Keep createdAt for streak counting
+          originalCreatedAt: pet.originalCreatedAt, // Keep original creation time
         };
+        // IMPORTANT: Save first, then update state to prevent race conditions
+        console.log(`[FEED] BEFORE SAVE - currentHealth: ${currentHealth}, newHealth: ${newHealth}, pet.health (stored): ${pet.health}, lastFed (old): ${pet.lastFed}`);
+        await savePet(updatedPet, updatedPet.type);
         setPet(updatedPet);
-        savePet(updatedPet, updatedPet.type);
-        console.log('Fed pet, new health:', updatedPet.health, 'lastFed updated to:', now);
+        // Verify what was actually saved
+        const verifyPet = await loadPet(updatedPet.type);
+        console.log(`[FEED] AFTER SAVE - saved health: ${verifyPet?.health}, saved lastFed: ${verifyPet?.lastFed}, calculated health now: ${getCurrentHealth(updatedPet)}`);
+        console.log('Fed pet - stored health:', updatedPet.health, 'lastFed:', now, 'calculated health after save:', getCurrentHealth(updatedPet));
       }
     }
   };
 
-  const handlePet = () => {
+  const handlePet = async () => {
     if (pet) {
       const currentHealth = getCurrentHealth(pet);
       if (currentHealth === 0) {
@@ -1450,16 +1484,23 @@ export function PetsScreen() {
           lastFed: pet.lastFed,
           lastPet: now, // This resets the decline clock
           lastPlay: pet.lastPlay,
+          lastPotion: pet.lastPotion, // Preserve potion timestamp
+          lastRevival: pet.lastRevival, // Preserve revival timestamp
           createdAt: pet.createdAt, // Keep createdAt for streak counting
+          originalCreatedAt: pet.originalCreatedAt, // Keep original creation time
         };
+        // IMPORTANT: Save first, then update state to prevent race conditions
+        console.log(`[PET] BEFORE SAVE - currentHealth: ${currentHealth}, newHealth: ${newHealth}, pet.health (stored): ${pet.health}, lastPet (old): ${pet.lastPet}`);
+        await savePet(updatedPet, updatedPet.type);
         setPet(updatedPet);
-        savePet(updatedPet, updatedPet.type);
-        console.log('Pet pet, new health:', updatedPet.health, 'lastPet updated to:', now);
+        // Verify what was actually saved
+        const verifyPet = await loadPet(updatedPet.type);
+        console.log(`[PET] AFTER SAVE - saved health: ${verifyPet?.health}, saved lastPet: ${verifyPet?.lastPet}, calculated health now: ${getCurrentHealth(updatedPet)}`);
       }
     }
   };
 
-  const handlePlay = () => {
+  const handlePlay = async () => {
     if (pet) {
       const currentHealth = getCurrentHealth(pet);
       if (currentHealth === 0) {
@@ -1488,11 +1529,18 @@ export function PetsScreen() {
           lastFed: pet.lastFed,
           lastPet: pet.lastPet,
           lastPlay: now, // This resets the decline clock
+          lastPotion: pet.lastPotion, // Preserve potion timestamp
+          lastRevival: pet.lastRevival, // Preserve revival timestamp
           createdAt: pet.createdAt, // Keep createdAt for streak counting
+          originalCreatedAt: pet.originalCreatedAt, // Keep original creation time
         };
+        // IMPORTANT: Save first, then update state to prevent race conditions
+        console.log(`[PLAY] BEFORE SAVE - currentHealth: ${currentHealth}, newHealth: ${newHealth}, pet.health (stored): ${pet.health}, lastPlay (old): ${pet.lastPlay}`);
+        await savePet(updatedPet, updatedPet.type);
         setPet(updatedPet);
-        savePet(updatedPet, updatedPet.type);
-        console.log('Played with pet, new health:', updatedPet.health, 'lastPlay updated to:', now);
+        // Verify what was actually saved
+        const verifyPet = await loadPet(updatedPet.type);
+        console.log(`[PLAY] AFTER SAVE - saved health: ${verifyPet?.health}, saved lastPlay: ${verifyPet?.lastPlay}, calculated health now: ${getCurrentHealth(updatedPet)}`);
       }
     }
   };
@@ -1745,9 +1793,24 @@ export function PetsScreen() {
                   pressed ? styles.dropdownButtonPressed : styles.dropdownButtonRaised,
                 ]}
               >
-                <Text style={[styles.dropdownLabel, { color: (ALL_THEMES[petsTheme] || PETS_THEMES[petsTheme] || ALL_THEMES['serene']).color }]}>
-                  {pet ? `${pet.type === 'puppy' ? '🐶' : '🐱'} ${pet.type.toUpperCase()}` : 'None'}
-                </Text>
+                <View style={styles.dropdownLabelWithIcon}>
+                  {pet && (
+                    <Image 
+                      source={
+                        pet.type === 'cat' ? require('../../assets/pets/cat/catsit2.png') :
+                        pet.type === 'puppy' ? require('../../assets/pets/puppy/puppysit2.png') :
+                        pet.type === 'panda' ? require('../../assets/pets/panda/pandasit2.png') :
+                        pet.type === 'koala' ? require('../../assets/pets/koala/koalasit2.png') :
+                        require('../../assets/pets/cat/catsit2.png')
+                      }
+                      style={styles.dropdownPetIcon}
+                      resizeMode="contain"
+                    />
+                  )}
+                  <Text style={[styles.dropdownLabel, { color: (ALL_THEMES[petsTheme] || PETS_THEMES[petsTheme] || ALL_THEMES['serene']).color }]}>
+                    {pet ? pet.type.toUpperCase() : 'None'}
+                  </Text>
+                </View>
                 <Text style={[styles.dropdownArrow, { color: (ALL_THEMES[petsTheme] || PETS_THEMES[petsTheme] || ALL_THEMES['serene']).color }]}>▼</Text>
               </Pressable>
 
@@ -1772,7 +1835,10 @@ export function PetsScreen() {
                     onPress={() => handlePetSelect('cat')}
                       style={styles.dropdownOptionContent}
                     >
-                      <Text style={[styles.dropdownOptionText, { color: (ALL_THEMES[petsTheme] || PETS_THEMES[petsTheme] || ALL_THEMES['serene']).color }]}>🐱 Cat</Text>
+                      <View style={styles.dropdownOptionWithIcon}>
+                        <Image source={require('../../assets/pets/cat/catsit2.png')} style={styles.dropdownOptionIcon} resizeMode="contain" />
+                        <Text style={[styles.dropdownOptionText, { color: (ALL_THEMES[petsTheme] || PETS_THEMES[petsTheme] || ALL_THEMES['serene']).color }]}>Cat</Text>
+                      </View>
                   </TouchableOpacity>
                   <TouchableOpacity
                       onPress={() => handleDeletePetClick('cat')}
@@ -1788,9 +1854,12 @@ export function PetsScreen() {
                       onPress={() => handlePetSelect('puppy')}
                       style={styles.dropdownOptionContent}
                   >
-                      <Text style={[styles.dropdownOptionText, { color: purchasedPets.includes('puppy') ? (ALL_THEMES[petsTheme] || PETS_THEMES[petsTheme] || ALL_THEMES['serene']).color : '#888888' }]}>
-                        🐶 Puppy {!purchasedPets.includes('puppy') && '🔒'}
-                      </Text>
+                      <View style={styles.dropdownOptionWithIcon}>
+                        <Image source={require('../../assets/pets/puppy/puppysit2.png')} style={[styles.dropdownOptionIcon, !purchasedPets.includes('puppy') && { opacity: 0.5 }]} resizeMode="contain" />
+                        <Text style={[styles.dropdownOptionText, { color: purchasedPets.includes('puppy') ? (ALL_THEMES[petsTheme] || PETS_THEMES[petsTheme] || ALL_THEMES['serene']).color : '#888888' }]}>
+                          Puppy {!purchasedPets.includes('puppy') && '🔒'}
+                        </Text>
+                      </View>
                   </TouchableOpacity>
                     {purchasedPets.includes('puppy') && (
                       <TouchableOpacity
@@ -1808,9 +1877,12 @@ export function PetsScreen() {
                       onPress={() => handlePetSelect('panda')}
                       style={styles.dropdownOptionContent}
                     >
-                      <Text style={[styles.dropdownOptionText, { color: purchasedPets.includes('panda') ? (ALL_THEMES[petsTheme] || PETS_THEMES[petsTheme] || ALL_THEMES['serene']).color : '#888888' }]}>
-                        🐼 Panda {!purchasedPets.includes('panda') && '🔒'}
-                      </Text>
+                      <View style={styles.dropdownOptionWithIcon}>
+                        <Image source={require('../../assets/pets/panda/pandasit2.png')} style={[styles.dropdownOptionIcon, !purchasedPets.includes('panda') && { opacity: 0.5 }]} resizeMode="contain" />
+                        <Text style={[styles.dropdownOptionText, { color: purchasedPets.includes('panda') ? (ALL_THEMES[petsTheme] || PETS_THEMES[petsTheme] || ALL_THEMES['serene']).color : '#888888' }]}>
+                          Panda {!purchasedPets.includes('panda') && '🔒'}
+                        </Text>
+                      </View>
                     </TouchableOpacity>
                     {purchasedPets.includes('panda') && (
                       <TouchableOpacity
@@ -1828,9 +1900,12 @@ export function PetsScreen() {
                       onPress={() => handlePetSelect('koala')}
                       style={styles.dropdownOptionContent}
                     >
-                      <Text style={[styles.dropdownOptionText, { color: purchasedPets.includes('koala') ? (ALL_THEMES[petsTheme] || PETS_THEMES[petsTheme] || ALL_THEMES['serene']).color : '#888888' }]}>
-                        🐨 Koala {!purchasedPets.includes('koala') && '🔒'}
-                  </Text>
+                      <View style={styles.dropdownOptionWithIcon}>
+                        <Image source={require('../../assets/pets/koala/koalasit2.png')} style={[styles.dropdownOptionIcon, !purchasedPets.includes('koala') && { opacity: 0.5 }]} resizeMode="contain" />
+                        <Text style={[styles.dropdownOptionText, { color: purchasedPets.includes('koala') ? (ALL_THEMES[petsTheme] || PETS_THEMES[petsTheme] || ALL_THEMES['serene']).color : '#888888' }]}>
+                          Koala {!purchasedPets.includes('koala') && '🔒'}
+                        </Text>
+                      </View>
                     </TouchableOpacity>
                     {purchasedPets.includes('koala') && (
                       <TouchableOpacity
@@ -3338,6 +3413,24 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     flexShrink: 1,
     lineHeight: 9,
+  },
+  dropdownLabelWithIcon: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  dropdownPetIcon: {
+    width: 18,
+    height: 18,
+  },
+  dropdownOptionWithIcon: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  dropdownOptionIcon: {
+    width: 20,
+    height: 20,
   },
   dropdownArrow: {
     fontFamily: 'PressStart2P_400Regular',
