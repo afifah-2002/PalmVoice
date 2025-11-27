@@ -1,7 +1,8 @@
 import { PressStart2P_400Regular, useFonts } from '@expo-google-fonts/press-start-2p';
 import { router } from 'expo-router';
 import React, { useEffect, useRef, useState } from 'react';
-import { Animated, Image, ImageBackground, ScrollView, Share, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { Animated, Image, ImageBackground, Pressable, ScrollView, Share, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import * as Haptics from 'expo-haptics';
 import ViewShot from 'react-native-view-shot';
 import { FavoriteButtons } from '../components/FavoriteButtons';
 import { PixelKeyboard } from '../components/PixelKeyboard';
@@ -1673,18 +1674,20 @@ export function PetsScreen() {
           <View style={styles.topBar}>
             {/* Theme Selector Dropdown */}
             <View style={styles.dropdownWrapper}>
-              <TouchableOpacity
+              <Pressable
                 onPress={() => {
+                  Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
                   setShowThemeDropdown(!showThemeDropdown);
                   setShowPetDropdown(false);
                   setShowActionsDropdown(false);
                 }}
-                style={[
+                style={({ pressed }) => [
                   styles.dropdownButton, 
                   { 
                     backgroundColor: 'rgba(0, 0, 0, 0.7)',
                     borderColor: (ALL_THEMES[petsTheme] || PETS_THEMES[petsTheme] || ALL_THEMES['serene']).color
-                  }
+                  },
+                  pressed ? styles.dropdownButtonPressed : styles.dropdownButtonRaised,
                 ]}
               >
                 <Text 
@@ -1694,7 +1697,7 @@ export function PetsScreen() {
                   {getThemeDisplayName(petsTheme)}
                 </Text>
                 <Text style={[styles.dropdownArrow, { color: (ALL_THEMES[petsTheme] || PETS_THEMES[petsTheme] || ALL_THEMES['serene']).color }]}>▼</Text>
-              </TouchableOpacity>
+              </Pressable>
 
               {showThemeDropdown && (
                 <View style={[styles.dropdownMenu, { backgroundColor: 'rgba(0, 0, 0, 0.85)', borderColor: (ALL_THEMES[petsTheme] || PETS_THEMES[petsTheme] || ALL_THEMES['serene']).color }]}>
@@ -1726,25 +1729,27 @@ export function PetsScreen() {
 
             {/* Pet Selector Dropdown */}
             <View style={styles.dropdownWrapper}>
-              <TouchableOpacity
+              <Pressable
                 onPress={() => {
+                  Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
                   setShowPetDropdown(!showPetDropdown);
                   setShowThemeDropdown(false);
                   setShowActionsDropdown(false);
                 }}
-                style={[
+                style={({ pressed }) => [
                   styles.dropdownButton, 
                   { 
                     backgroundColor: 'rgba(0, 0, 0, 0.7)',
                     borderColor: (ALL_THEMES[petsTheme] || PETS_THEMES[petsTheme] || ALL_THEMES['serene']).color
-                  }
+                  },
+                  pressed ? styles.dropdownButtonPressed : styles.dropdownButtonRaised,
                 ]}
               >
                 <Text style={[styles.dropdownLabel, { color: (ALL_THEMES[petsTheme] || PETS_THEMES[petsTheme] || ALL_THEMES['serene']).color }]}>
                   {pet ? `${pet.type === 'puppy' ? '🐶' : '🐱'} ${pet.type.toUpperCase()}` : 'None'}
                 </Text>
                 <Text style={[styles.dropdownArrow, { color: (ALL_THEMES[petsTheme] || PETS_THEMES[petsTheme] || ALL_THEMES['serene']).color }]}>▼</Text>
-              </TouchableOpacity>
+              </Pressable>
 
               {showPetDropdown && (
                 <View style={[styles.dropdownMenu, { backgroundColor: 'rgba(0, 0, 0, 0.85)', borderColor: (ALL_THEMES[petsTheme] || PETS_THEMES[petsTheme] || ALL_THEMES['serene']).color }]}>
@@ -1881,25 +1886,27 @@ export function PetsScreen() {
               {/* Actions Dropdown */}
               {pet && (
                 <View style={styles.dropdownWrapper}>
-                  <TouchableOpacity
+                  <Pressable
                     onPress={() => {
+                      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
                       setShowActionsDropdown(!showActionsDropdown);
                       setShowThemeDropdown(false);
                       setShowPetDropdown(false);
                     }}
-                    style={[
+                    style={({ pressed }) => [
                       styles.dropdownButton, 
                       { 
                         backgroundColor: 'rgba(0, 0, 0, 0.7)',
                         borderColor: (ALL_THEMES[petsTheme] || PETS_THEMES[petsTheme] || ALL_THEMES['serene']).color
-                      }
+                      },
+                      pressed ? styles.dropdownButtonPressed : styles.dropdownButtonRaised,
                     ]}
                   >
                     <Text style={[styles.dropdownLabel, { color: (ALL_THEMES[petsTheme] || PETS_THEMES[petsTheme] || ALL_THEMES['serene']).color }]}>
                       ACTIONS
               </Text>
                     <Text style={[styles.dropdownArrow, { color: (ALL_THEMES[petsTheme] || PETS_THEMES[petsTheme] || ALL_THEMES['serene']).color }]}>▼</Text>
-                  </TouchableOpacity>
+                  </Pressable>
 
                   {showActionsDropdown && (
                     <View style={[styles.dropdownMenu, styles.actionsDropdownMenu, { backgroundColor: 'rgba(0, 0, 0, 0.85)', borderColor: (ALL_THEMES[petsTheme] || PETS_THEMES[petsTheme] || ALL_THEMES['serene']).color }]}>
@@ -2166,8 +2173,9 @@ export function PetsScreen() {
 
           {/* Bottom Bar - Coins, Shop, Streak */}
           <View style={styles.bottomBar}>
-            <TouchableOpacity
+            <Pressable
               onPress={async () => {
+                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
                 // Reload items from storage to ensure latest values
                 const tokens = await loadRevivalTokens();
                 const potions = await loadHealthPotions();
@@ -2180,8 +2188,10 @@ export function PetsScreen() {
                   setShowCoinsPopup(true);
                 });
               }}
-              style={styles.bottomBarItem}
-              activeOpacity={0.8}
+              style={({ pressed }) => [
+                styles.bottomBarItem,
+                pressed ? styles.bottomBarItemPressed : styles.bottomBarItemRaised,
+              ]}
             >
               <Image 
                 source={require('../../assets/rewards/coins.png')}
@@ -2189,12 +2199,17 @@ export function PetsScreen() {
                 resizeMode="contain"
               />
               <Text style={[styles.bottomBarText, { color: '#FFFFFF' }]}>{coins}</Text>
-            </TouchableOpacity>
+            </Pressable>
             
-            <TouchableOpacity
-              onPress={() => setShowStreakPopup(true)}
-              style={styles.bottomBarItem}
-              activeOpacity={0.8}
+            <Pressable
+              onPress={() => {
+                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+                setShowStreakPopup(true);
+              }}
+              style={({ pressed }) => [
+                styles.bottomBarItem,
+                pressed ? styles.bottomBarItemPressed : styles.bottomBarItemRaised,
+              ]}
             >
               <Image 
                 source={require('../../assets/icons/streak.png')}
@@ -2204,10 +2219,11 @@ export function PetsScreen() {
               <Text style={[styles.bottomBarText, { color: '#FFFFFF' }]}>
                 {pet ? `${calculateStreak(pet)} DAY${calculateStreak(pet) !== 1 ? 'S' : ''}` : '0 DAYS'}
               </Text>
-            </TouchableOpacity>
+            </Pressable>
             
-            <TouchableOpacity
+            <Pressable
               onPress={() => {
+                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
                 setShowShop(true);
                 setCurrentShopBox(1);
                 setShowShopModal(false);
@@ -2265,8 +2281,10 @@ export function PetsScreen() {
                   ]).start();
                 }, 2000);
               }}
-              style={styles.bottomBarItem}
-              activeOpacity={0.8}
+              style={({ pressed }) => [
+                styles.bottomBarItem,
+                pressed ? styles.bottomBarItemPressed : styles.bottomBarItemRaised,
+              ]}
             >
               <Image 
                 source={require('../../assets/icons/shop.png')}
@@ -2274,7 +2292,7 @@ export function PetsScreen() {
                 resizeMode="contain"
               />
               <Text style={[styles.bottomBarText, { color: '#FFFFFF' }]}>SHOP</Text>
-            </TouchableOpacity>
+            </Pressable>
           </View>
 
           {/* Pixel Keyboard - Inside screen, appears from bottom (same as homepage) */}
@@ -2622,18 +2640,23 @@ export function PetsScreen() {
               >
                 <View style={styles.shopContainer}>
                   {/* Close Button */}
-                  <TouchableOpacity
+                  <Pressable
                     onPress={() => {
+                      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
                       setShowShop(false);
                       setCurrentShopBox(1);
                       setShowShopModal(false);
                       treasureBoxOpacity.setValue(0);
                     }}
-                    style={styles.shopCloseButton}
-                    activeOpacity={0.8}
+                    style={({ pressed }) => [
+                      styles.shopCloseButton,
+                      pressed ? styles.shopCloseButtonPressed : styles.shopCloseButtonRaised,
+                    ]}
                   >
-                    <Text style={styles.shopCloseButtonText}>✕</Text>
-                  </TouchableOpacity>
+                    {({ pressed }) => (
+                      <Text style={[styles.shopCloseButtonText, pressed && { transform: [{ scale: 0.9 }] }]}>✕</Text>
+                    )}
+                  </Pressable>
 
                   {/* Animated Shopkeeper */}
                   <View style={styles.shopkeeperContainer}>
@@ -3286,13 +3309,28 @@ const styles = StyleSheet.create({
   dropdownButton: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: 8,
-    paddingVertical: 6,
-    borderWidth: 2,
-    borderRadius: 4,
+    paddingHorizontal: 10,
+    paddingVertical: 8,
+    borderRadius: 6,
     gap: 4,
     flexShrink: 1,
     minWidth: 0,
+    borderWidth: 2,
+  },
+  dropdownButtonRaised: {
+    transform: [{ translateY: -1 }],
+    shadowColor: '#000',
+    shadowOffset: { width: 2, height: 3 },
+    shadowOpacity: 0.4,
+    shadowRadius: 0,
+  },
+  dropdownButtonPressed: {
+    transform: [{ translateY: 1 }, { scale: 0.97 }],
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.2,
+    shadowRadius: 0,
+    opacity: 0.85,
   },
   dropdownLabel: {
     fontFamily: 'PressStart2P_400Regular',
@@ -3411,8 +3449,38 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 8,
-    paddingHorizontal: 12,
-    paddingVertical: 8,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    borderRadius: 8,
+    backgroundColor: 'transparent',
+  },
+  bottomBarItemRaised: {
+    // Transparent raised 3D effect
+    borderWidth: 2,
+    borderTopColor: 'rgba(255, 255, 255, 0.4)',
+    borderLeftColor: 'rgba(255, 255, 255, 0.4)',
+    borderBottomColor: 'rgba(0, 0, 0, 0.5)',
+    borderRightColor: 'rgba(0, 0, 0, 0.5)',
+    backgroundColor: 'rgba(255, 255, 255, 0.1)',
+    transform: [{ translateY: 0 }],
+    shadowColor: '#000',
+    shadowOffset: { width: 1, height: 3 },
+    shadowOpacity: 0.4,
+    shadowRadius: 0,
+  },
+  bottomBarItemPressed: {
+    // Pressed down effect - inverted borders
+    borderWidth: 2,
+    borderTopColor: 'rgba(0, 0, 0, 0.5)',
+    borderLeftColor: 'rgba(0, 0, 0, 0.5)',
+    borderBottomColor: 'rgba(255, 255, 255, 0.3)',
+    borderRightColor: 'rgba(255, 255, 255, 0.3)',
+    backgroundColor: 'rgba(0, 0, 0, 0.2)',
+    transform: [{ translateY: 2 }, { scale: 0.96 }],
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.2,
+    shadowRadius: 0,
   },
   bottomBarIcon: {
     width: 32,
@@ -3869,20 +3937,49 @@ const styles = StyleSheet.create({
     position: 'absolute',
     top: 20,
     right: 20,
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: 'rgba(0, 0, 0, 0.6)',
+    width: 44,
+    height: 44,
+    borderRadius: 8,
+    backgroundColor: '#FFE5B4',
     alignItems: 'center',
     justifyContent: 'center',
     zIndex: 1001,
-    borderWidth: 2,
-    borderColor: '#FFFFFF',
+  },
+  shopCloseButtonRaised: {
+    borderTopWidth: 3,
+    borderLeftWidth: 3,
+    borderBottomWidth: 4,
+    borderRightWidth: 4,
+    borderTopColor: '#FFEFD5',
+    borderLeftColor: '#FFEFD5',
+    borderBottomColor: '#8B4513',
+    borderRightColor: '#8B4513',
+    transform: [{ translateY: 0 }],
+    shadowColor: '#000',
+    shadowOffset: { width: 2, height: 3 },
+    shadowOpacity: 0.5,
+    shadowRadius: 0,
+  },
+  shopCloseButtonPressed: {
+    borderTopWidth: 4,
+    borderLeftWidth: 4,
+    borderBottomWidth: 2,
+    borderRightWidth: 2,
+    borderTopColor: '#8B4513',
+    borderLeftColor: '#8B4513',
+    borderBottomColor: '#FFEFD5',
+    borderRightColor: '#FFEFD5',
+    backgroundColor: '#E8D4A8',
+    transform: [{ translateY: 2 }, { scale: 0.95 }],
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.3,
+    shadowRadius: 0,
   },
   shopCloseButtonText: {
     fontFamily: 'PressStart2P_400Regular',
-    fontSize: 20,
-    color: '#FFFFFF',
+    fontSize: 18,
+    color: '#8B4513',
   },
   shopDialogueBox: {
     position: 'absolute',
