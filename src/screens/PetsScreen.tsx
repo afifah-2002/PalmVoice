@@ -1,6 +1,6 @@
 import { PressStart2P_400Regular, useFonts } from '@expo-google-fonts/press-start-2p';
 import { router } from 'expo-router';
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Animated, Image, ImageBackground, Pressable, ScrollView, Share, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import * as Haptics from 'expo-haptics';
 import ViewShot from 'react-native-view-shot';
@@ -429,6 +429,49 @@ export function PetsScreen() {
     require('../../assets/pets/koala/koalaplay3.png'),
   ];
 
+  // Function to repair all pets' health at once
+  const repairAllPetsHealth = async (petTypes: string[]) => {
+    const now = Date.now();
+    const hoursPerHeart = 4.8;
+    const millisecondsPerHeart = hoursPerHeart * 60 * 60 * 1000;
+    
+    for (const petType of petTypes) {
+      try {
+        const savedPet = await loadPet(petType);
+        if (!savedPet) continue;
+        
+        // Check if pet has lastRevival set
+        // CRITICAL: After revival, stored health should be 5 (the baseline), NOT the current calculated health
+        // The stored health is the baseline at the time of last interaction - it does NOT decay
+        // The calculation function subtracts hearts lost from this baseline to get displayed health
+        if (savedPet.lastRevival && savedPet.lastRevival > 0) {
+          const hoursSinceRevival = (now - savedPet.lastRevival) / (60 * 60 * 1000);
+          
+          // After revival, stored health should be 5 (the baseline)
+          // Only repair if stored health is NOT 5 and it's been less than 24 hours since revival
+          if (savedPet.health !== 5 && hoursSinceRevival < 24) {
+            console.warn(`[BATCH HEALTH REPAIR] Pet ${savedPet.name} (${petType}): Stored health is ${savedPet.health} (should be 5 after revival). Hours since revival: ${hoursSinceRevival.toFixed(2)}. Repairing to 5...`);
+            
+            const repairedPet = {
+              ...savedPet,
+              health: 5, // Set to 5 (the baseline after revival)
+            };
+            
+            await savePet(repairedPet, petType);
+            console.log(`[BATCH HEALTH REPAIR] Saved repaired health: 5 (baseline) for ${savedPet.name}. Calculated current health will be: ${getCurrentHealth(repairedPet as Pet)}`);
+            
+            // If this is the current pet, update state
+            if (pet && pet.type === petType) {
+              setPet(repairedPet as Pet);
+            }
+          }
+        }
+      } catch (error) {
+        console.error(`[BATCH HEALTH REPAIR] Error repairing ${petType}:`, error);
+      }
+    }
+  };
+
   // Load saved pets theme and pet data on mount
   useEffect(() => {
     loadPetsTheme().then((savedTheme) => {
@@ -490,19 +533,60 @@ export function PetsScreen() {
             calculatedHealth = Math.max(0, 5 - heartsLost);
           }
           
+          // SAFEGUARD: Check if stored health seems corrupted
+          // If stored health is very low (1 or 0) but last interaction was recent (< 5 hours), something is wrong
+          const now = Date.now();
+          const minutesSinceInteraction = lastInteraction > 0 ? (now - lastInteraction) / (60 * 1000) : Infinity;
+          const hoursSinceInteraction = minutesSinceInteraction / 60;
+          
+          // CRITICAL REPAIR: Check if stored health is wrong after revival
+          // If lastRevival is set but stored health is not 5, or if stored health is lower than it should be
+          let healthToStore = petWithOriginalCreated.health;
+          
+          // SPECIAL CASE: If lastRevival is set, stored health should be 5 (the baseline)
+          // CRITICAL: Stored health is the BASELINE at the time of last interaction - it does NOT decay
+          // The calculation function subtracts hearts lost from this baseline to get displayed health
+          if (petWithOriginalCreated.lastRevival && petWithOriginalCreated.lastRevival > 0) {
+            const hoursSinceRevival = hoursSinceInteraction;
+            
+            // After revival, stored health should be 5 (the baseline)
+            // Only repair if stored health is NOT 5 and it's been less than 24 hours since revival
+            if (petWithOriginalCreated.health !== 5 && hoursSinceRevival < 24) {
+              console.warn(`[HEALTH REPAIR] Pet ${petWithOriginalCreated.name}: Revival detected but stored health is ${petWithOriginalCreated.health} (should be 5 after revival). Hours since revival: ${hoursSinceRevival.toFixed(2)}. Repairing to 5...`);
+              healthToStore = 5; // Set to 5 (the baseline after revival)
+            }
+          }
+          
+          // If stored health is 1 or 0 but we had an interaction less than 5 hours ago, the stored health is likely corrupted
+          // We should restore it based on the calculated health + hearts lost
+          if (petWithOriginalCreated.health <= 1 && lastInteraction > 0 && hoursSinceInteraction < 5 && healthToStore === petWithOriginalCreated.health) {
+            // Try to reconstruct what the stored health should be
+            // If calculated health is X and we lost Y hearts, stored health should be X + Y
+            const heartsLost = Math.floor((now - lastInteraction) / (4.8 * 60 * 60 * 1000));
+            const reconstructedStoredHealth = calculatedHealth + heartsLost;
+            
+            if (reconstructedStoredHealth > petWithOriginalCreated.health && reconstructedStoredHealth <= 5) {
+              console.warn(`[HEALTH REPAIR] Pet ${petWithOriginalCreated.name}: Stored health (${petWithOriginalCreated.health}) seems corrupted! Last interaction was ${hoursSinceInteraction.toFixed(2)} hours ago. Reconstructing to ${reconstructedStoredHealth} based on calculated health (${calculatedHealth}) + hearts lost (${heartsLost}).`);
+              healthToStore = reconstructedStoredHealth;
+            }
+          }
+          
           // IMPORTANT: Don't save the calculated health back to storage!
           // The stored health is the baseline from the last interaction.
           // We only calculate health for display - we should NOT overwrite the stored baseline.
-          // Only update if we need to add missing fields (originalCreatedAt, etc.)
+          // Only update if we need to add missing fields (originalCreatedAt, etc.) OR if health was corrupted
           const correctedPet = {
             ...petWithOriginalCreated,
-            // Keep the ORIGINAL stored health as the baseline - don't overwrite it!
-            health: petWithOriginalCreated.health,
+            health: healthToStore, // Use repaired health if corruption was detected
           };
           
-          // Only save if we're adding missing metadata fields, NOT if health changed
-          if (!savedPet.originalCreatedAt || !savedPet.lastPotion || !savedPet.lastRevival) {
-            console.log(`Pet metadata updated on load: adding missing fields`);
+          // Save if we're adding missing metadata fields OR if we repaired corrupted health
+          if (!savedPet.originalCreatedAt || !savedPet.lastPotion || !savedPet.lastRevival || healthToStore !== petWithOriginalCreated.health) {
+            if (healthToStore !== petWithOriginalCreated.health) {
+              console.log(`[HEALTH REPAIR] Saving repaired health: ${healthToStore} (was ${petWithOriginalCreated.health})`);
+            } else {
+              console.log(`Pet metadata updated on load: adding missing fields`);
+            }
             setPet(correctedPet as Pet);
             savePet(correctedPet, correctedPet.type);
           } else {
@@ -511,7 +595,7 @@ export function PetsScreen() {
           }
           
           // Log what we're working with
-          console.log(`[LOAD] Pet loaded - Stored health baseline: ${petWithOriginalCreated.health}, Calculated current health: ${calculatedHealth}, Last interaction: ${new Date(lastInteraction).toLocaleString()}`);
+          console.log(`[LOAD] Pet loaded - Stored health baseline: ${healthToStore}, Calculated current health: ${calculatedHealth}, Last interaction: ${new Date(lastInteraction).toLocaleString()}`);
         }
       }
     });
@@ -525,6 +609,8 @@ export function PetsScreen() {
     });
     loadPurchasedPets().then((pets) => {
       setPurchasedPets(pets);
+      // Repair all pets' health after loading purchased pets
+      repairAllPetsHealth(pets);
     });
     loadRevivalTokens().then((tokens) => {
       setRevivalTokens(tokens);
@@ -642,11 +728,28 @@ export function PetsScreen() {
       const heartsLost = Math.floor(elapsedSinceInteraction / millisecondsPerHeart);
       const calculatedHealth = Math.max(0, petData.health - heartsLost);
       
-      // Debug logging to help diagnose issues
+      // SAFEGUARD: Detect if stored health seems corrupted
+      // If stored health is very low but we just had an interaction recently, something is wrong
+      const minutesSinceInteraction = elapsedSinceInteraction / (60 * 1000);
+      if (petData.health <= 1 && minutesSinceInteraction < 60 && calculatedHealth <= 1) {
+        // This suggests stored health is corrupted - log a warning
+        const lastWarnKey = `health_warn_${petData.name}`;
+        const lastWarnTime = (global as any)[lastWarnKey] || 0;
+        if ((now - lastWarnTime) > 300000) { // Warn every 5 minutes max
+          console.error(`[HEALTH CORRUPTION DETECTED] Pet: ${petData.name}, Stored health: ${petData.health} seems too low! Last interaction was ${minutesSinceInteraction.toFixed(1)} minutes ago. This might indicate data corruption.`);
+          (global as any)[lastWarnKey] = now;
+        }
+      }
+      
+      // Debug logging to help diagnose issues (only log once per minute to prevent spam)
       const hoursElapsed = elapsedSinceInteraction / (60 * 60 * 1000);
-      if (hoursElapsed > 2) { // Only log if significant time has passed
+      const lastLogKey = `health_log_${petData.name}`;
+      const lastLogTime = (global as any)[lastLogKey] || 0;
+      
+      if (hoursElapsed > 2 && (now - lastLogTime) > 60000) { // Only log if significant time passed AND at least 1 minute since last log
         console.log(`[HEALTH CALC] Pet: ${petData.name}, Stored health: ${petData.health}, Hours since interaction: ${hoursElapsed.toFixed(2)}, Hearts lost: ${heartsLost}, Calculated health: ${calculatedHealth}`);
         console.log(`[HEALTH CALC] Timestamps - lastFed: ${petData.lastFed}, lastPet: ${petData.lastPet}, lastPlay: ${petData.lastPlay}, lastPotion: ${petData.lastPotion}, lastRevival: ${petData.lastRevival}`);
+        (global as any)[lastLogKey] = now;
       }
       
       return calculatedHealth;
@@ -711,9 +814,68 @@ export function PetsScreen() {
     return () => clearInterval(interval);
   }, [pet?.type]);
 
+  // AUTOMATIC HEALTH REPAIR: Check and fix corrupted health whenever pet state changes
+  useEffect(() => {
+    if (!pet) return;
+    
+    const lastInteraction = Math.max(
+      pet.lastFed || 0,
+      pet.lastPet || 0,
+      pet.lastPlay || 0,
+      pet.lastPotion || 0,
+      pet.lastRevival || 0
+    );
+    
+    if (lastInteraction > 0) {
+      const now = Date.now();
+      const hoursSinceInteraction = (now - lastInteraction) / (60 * 60 * 1000);
+      const calculatedHealth = getCurrentHealth(pet);
+      
+      // SPECIAL CASE: If stored health is wrong but lastRevival is set, repair to 5 (the baseline)
+      // CRITICAL: Stored health is the BASELINE at the time of last interaction - it does NOT decay
+      // The calculation function subtracts hearts lost from this baseline to get displayed health
+      if (pet.lastRevival && pet.lastRevival > 0) {
+        const hoursSinceRevival = (now - pet.lastRevival) / (60 * 60 * 1000);
+        
+        // After revival, stored health should be 5 (the baseline)
+        // Only repair if stored health is NOT 5 and it's been less than 24 hours since revival
+        if (pet.health !== 5 && hoursSinceRevival < 24) {
+          console.warn(`[AUTO HEALTH REPAIR] Pet ${pet.name}: Stored health is ${pet.health} (should be 5 after revival). Hours since revival: ${hoursSinceRevival.toFixed(2)}. Repairing to 5...`);
+          const repairedPet = {
+            ...pet,
+            health: 5, // Set to 5 (the baseline after revival)
+          };
+          savePet(repairedPet, repairedPet.type);
+          setPet(repairedPet);
+          return; // Exit early, don't check other conditions
+        }
+      }
+      
+      // If stored health is very low (1 or 0) but last interaction was recent (< 5 hours), repair it
+      if (pet.health <= 1 && hoursSinceInteraction < 5 && calculatedHealth <= 1) {
+        const heartsLost = Math.floor((now - lastInteraction) / (4.8 * 60 * 60 * 1000));
+        const reconstructedStoredHealth = calculatedHealth + heartsLost;
+        
+        if (reconstructedStoredHealth > pet.health && reconstructedStoredHealth <= 5) {
+          console.error(`[AUTO HEALTH REPAIR] Pet ${pet.name}: Repairing corrupted health from ${pet.health} to ${reconstructedStoredHealth}`);
+          const repairedPet = {
+            ...pet,
+            health: reconstructedStoredHealth,
+          };
+          savePet(repairedPet, repairedPet.type);
+          setPet(repairedPet);
+        }
+      }
+    }
+  }, [pet?.health, pet?.lastFed, pet?.lastPet, pet?.lastPlay, pet?.lastPotion, pet?.lastRevival]);
+
   // Calculate the current displayed health (used for UI and logic)
   // This is computed dynamically based on time since last interaction
-  const displayedHealth = pet ? getCurrentHealth(pet) : 0;
+  // Use useMemo to prevent infinite re-renders
+  const displayedHealth = useMemo(() => {
+    if (!pet) return 0;
+    return getCurrentHealth(pet);
+  }, [pet, forceUpdate]); // Recalculate when pet changes or forceUpdate triggers
 
 
   // Auto-close coins popup after 3 seconds
@@ -1294,32 +1456,15 @@ export function PetsScreen() {
             petWithNewFields.lastRevival || 0
           );
           
-          let calculatedHealth = petWithNewFields.health;
-          const now = Date.now();
-          
-          if (lastInteraction > 0) {
-            // Health declines from last interaction
-            const elapsedSinceInteraction = now - lastInteraction;
-            const hoursPerHeart = 4.8;
-            const millisecondsPerHeart = hoursPerHeart * 60 * 60 * 1000;
-            const heartsLost = Math.floor(elapsedSinceInteraction / millisecondsPerHeart);
-            calculatedHealth = Math.max(0, petWithNewFields.health - heartsLost);
-          } else if (petWithNewFields.createdAt) {
-            // New pet with no interactions - decline from creation
-            const elapsedTime = now - petWithNewFields.createdAt;
-            const hoursPerHeart = 4.8;
-            const millisecondsPerHeart = hoursPerHeart * 60 * 60 * 1000;
-            const heartsLost = Math.floor(elapsedTime / millisecondsPerHeart);
-            calculatedHealth = Math.max(0, 5 - heartsLost);
+          // CRITICAL: Do NOT overwrite stored health with calculated health!
+          // The stored health is the baseline from the last interaction.
+          // We only calculate health for display - we should NEVER overwrite the stored baseline.
+          // Just set the pet state - the displayed health will be calculated by getCurrentHealth()
+          setPet(petWithNewFields as Pet);
+          // Only save if we're adding missing metadata fields, NOT to update health
+          if (!existingPet.originalCreatedAt || !existingPet.lastPotion || !existingPet.lastRevival) {
+            savePet(petWithNewFields, petWithNewFields.type);
           }
-          
-          const correctedPet = {
-            ...petWithNewFields,
-            health: calculatedHealth,
-          };
-          setPet(correctedPet as Pet);
-          // Save as current pet with corrected health
-          savePet(correctedPet, correctedPet.type);
           setShowPetDropdown(false);
         } else {
           // New pet, show name modal
@@ -1445,11 +1590,26 @@ export function PetsScreen() {
         };
         // IMPORTANT: Save first, then update state to prevent race conditions
         console.log(`[FEED] BEFORE SAVE - currentHealth: ${currentHealth}, newHealth: ${newHealth}, pet.health (stored): ${pet.health}, lastFed (old): ${pet.lastFed}`);
+        
+        // Validate: newHealth should be at least currentHealth + 1 (unless at max)
+        if (newHealth < currentHealth) {
+          console.error(`[FEED] ERROR - newHealth (${newHealth}) is less than currentHealth (${currentHealth})! This should never happen.`);
+        }
+        
         await savePet(updatedPet, updatedPet.type);
         setPet(updatedPet);
-        // Verify what was actually saved
+        
+        // Verify what was actually saved - CRITICAL CHECK
         const verifyPet = await loadPet(updatedPet.type);
-        console.log(`[FEED] AFTER SAVE - saved health: ${verifyPet?.health}, saved lastFed: ${verifyPet?.lastFed}, calculated health now: ${getCurrentHealth(updatedPet)}`);
+        if (verifyPet && verifyPet.health !== newHealth) {
+          console.error(`[FEED] SAVE FAILED! Tried to save health: ${newHealth}, but stored health is: ${verifyPet.health}`);
+          // Try saving again
+          await savePet(updatedPet, updatedPet.type);
+          const verifyPet2 = await loadPet(updatedPet.type);
+          console.log(`[FEED] RETRY SAVE - saved health: ${verifyPet2?.health}`);
+        } else {
+          console.log(`[FEED] AFTER SAVE - saved health: ${verifyPet?.health}, saved lastFed: ${verifyPet?.lastFed}, calculated health now: ${getCurrentHealth(updatedPet)}`);
+        }
         console.log('Fed pet - stored health:', updatedPet.health, 'lastFed:', now, 'calculated health after save:', getCurrentHealth(updatedPet));
       }
     }
@@ -1491,11 +1651,26 @@ export function PetsScreen() {
         };
         // IMPORTANT: Save first, then update state to prevent race conditions
         console.log(`[PET] BEFORE SAVE - currentHealth: ${currentHealth}, newHealth: ${newHealth}, pet.health (stored): ${pet.health}, lastPet (old): ${pet.lastPet}`);
+        
+        // Validate: newHealth should be at least currentHealth + 1 (unless at max)
+        if (newHealth < currentHealth) {
+          console.error(`[PET] ERROR - newHealth (${newHealth}) is less than currentHealth (${currentHealth})! This should never happen.`);
+        }
+        
         await savePet(updatedPet, updatedPet.type);
         setPet(updatedPet);
-        // Verify what was actually saved
+        
+        // Verify what was actually saved - CRITICAL CHECK
         const verifyPet = await loadPet(updatedPet.type);
-        console.log(`[PET] AFTER SAVE - saved health: ${verifyPet?.health}, saved lastPet: ${verifyPet?.lastPet}, calculated health now: ${getCurrentHealth(updatedPet)}`);
+        if (verifyPet && verifyPet.health !== newHealth) {
+          console.error(`[PET] SAVE FAILED! Tried to save health: ${newHealth}, but stored health is: ${verifyPet.health}`);
+          // Try saving again
+          await savePet(updatedPet, updatedPet.type);
+          const verifyPet2 = await loadPet(updatedPet.type);
+          console.log(`[PET] RETRY SAVE - saved health: ${verifyPet2?.health}`);
+        } else {
+          console.log(`[PET] AFTER SAVE - saved health: ${verifyPet?.health}, saved lastPet: ${verifyPet?.lastPet}, calculated health now: ${getCurrentHealth(updatedPet)}`);
+        }
       }
     }
   };
@@ -1536,11 +1711,26 @@ export function PetsScreen() {
         };
         // IMPORTANT: Save first, then update state to prevent race conditions
         console.log(`[PLAY] BEFORE SAVE - currentHealth: ${currentHealth}, newHealth: ${newHealth}, pet.health (stored): ${pet.health}, lastPlay (old): ${pet.lastPlay}`);
+        
+        // Validate: newHealth should be at least currentHealth + 1 (unless at max)
+        if (newHealth < currentHealth) {
+          console.error(`[PLAY] ERROR - newHealth (${newHealth}) is less than currentHealth (${currentHealth})! This should never happen.`);
+        }
+        
         await savePet(updatedPet, updatedPet.type);
         setPet(updatedPet);
-        // Verify what was actually saved
+        
+        // Verify what was actually saved - CRITICAL CHECK
         const verifyPet = await loadPet(updatedPet.type);
-        console.log(`[PLAY] AFTER SAVE - saved health: ${verifyPet?.health}, saved lastPlay: ${verifyPet?.lastPlay}, calculated health now: ${getCurrentHealth(updatedPet)}`);
+        if (verifyPet && verifyPet.health !== newHealth) {
+          console.error(`[PLAY] SAVE FAILED! Tried to save health: ${newHealth}, but stored health is: ${verifyPet.health}`);
+          // Try saving again
+          await savePet(updatedPet, updatedPet.type);
+          const verifyPet2 = await loadPet(updatedPet.type);
+          console.log(`[PLAY] RETRY SAVE - saved health: ${verifyPet2?.health}`);
+        } else {
+          console.log(`[PLAY] AFTER SAVE - saved health: ${verifyPet?.health}, saved lastPlay: ${verifyPet?.lastPlay}, calculated health now: ${getCurrentHealth(updatedPet)}`);
+        }
       }
     }
   };
@@ -1581,11 +1771,34 @@ export function PetsScreen() {
       lastPlay: 0,
       lastPotion: 0,
     };
+    
+    console.log(`[REVIVE] BEFORE SAVE - health: 5, lastRevival: ${now}, pet.health (old): ${pet.health}`);
+    // IMPORTANT: Await the save to prevent race conditions
+    await savePet(revivedPet, revivedPet.type);
     setPet(revivedPet);
-    savePet(revivedPet, revivedPet.type);
+    
+    // Verify what was actually saved - CRITICAL CHECK
+    const verifyPet = await loadPet(revivedPet.type);
+    if (verifyPet && verifyPet.health !== 5) {
+      console.error(`[REVIVE] SAVE FAILED! Tried to save health: 5, but stored health is: ${verifyPet.health}`);
+      // Try saving again - this is critical!
+      await savePet(revivedPet, revivedPet.type);
+      const verifyPet2 = await loadPet(revivedPet.type);
+      if (verifyPet2 && verifyPet2.health !== 5) {
+        console.error(`[REVIVE] RETRY ALSO FAILED! Stored health is still: ${verifyPet2.health}. This is a critical error!`);
+      } else {
+        console.log(`[REVIVE] RETRY SUCCESS - saved health: ${verifyPet2?.health}`);
+        // Update state with the verified pet
+        if (verifyPet2) {
+          setPet(verifyPet2 as Pet);
+        }
+      }
+    } else {
+      console.log(`[REVIVE] AFTER SAVE - saved health: ${verifyPet?.health}, saved lastRevival: ${verifyPet?.lastRevival}, calculated health now: ${getCurrentHealth(revivedPet)}`);
+    }
+    
     setShowRevivePopup(false);
     setActiveAnimation(null);
-    console.log('Revived pet, health: 5, lastRevival:', now, 'originalCreatedAt preserved:', revivedPet.originalCreatedAt);
   };
 
   const startGame = () => {
