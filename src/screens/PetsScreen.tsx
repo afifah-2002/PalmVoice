@@ -1576,6 +1576,7 @@ export function PetsScreen() {
         
         // Update health and lastFed - the 4.8 hour clock resets from this interaction
         // Store the NEW health as the baseline for future decline calculations
+        // CRITICAL: Clear lastRevival when interacting - pet is no longer in revival mode
         const updatedPet: Pet = {
           type: pet.type,
           name: pet.name,
@@ -1584,7 +1585,7 @@ export function PetsScreen() {
           lastPet: pet.lastPet,
           lastPlay: pet.lastPlay,
           lastPotion: pet.lastPotion, // Preserve potion timestamp
-          lastRevival: pet.lastRevival, // Preserve revival timestamp
+          lastRevival: 0, // Clear revival timestamp - pet is now in normal interaction mode
           createdAt: pet.createdAt, // Keep createdAt for streak counting
           originalCreatedAt: pet.originalCreatedAt, // Keep original creation time
         };
@@ -1637,6 +1638,7 @@ export function PetsScreen() {
         const now = Date.now();
         
         // Update health and lastPet - the 4.8 hour clock resets from this interaction
+        // CRITICAL: Clear lastRevival when interacting - pet is no longer in revival mode
         const updatedPet: Pet = {
           type: pet.type,
           name: pet.name,
@@ -1645,7 +1647,7 @@ export function PetsScreen() {
           lastPet: now, // This resets the decline clock
           lastPlay: pet.lastPlay,
           lastPotion: pet.lastPotion, // Preserve potion timestamp
-          lastRevival: pet.lastRevival, // Preserve revival timestamp
+          lastRevival: 0, // Clear revival timestamp - pet is now in normal interaction mode
           createdAt: pet.createdAt, // Keep createdAt for streak counting
           originalCreatedAt: pet.originalCreatedAt, // Keep original creation time
         };
@@ -1697,6 +1699,7 @@ export function PetsScreen() {
         const now = Date.now();
         
         // Update health and lastPlay - the 4.8 hour clock resets from this interaction
+        // CRITICAL: Clear lastRevival when interacting - pet is no longer in revival mode
         const updatedPet: Pet = {
           type: pet.type,
           name: pet.name,
@@ -1705,7 +1708,7 @@ export function PetsScreen() {
           lastPet: pet.lastPet,
           lastPlay: now, // This resets the decline clock
           lastPotion: pet.lastPotion, // Preserve potion timestamp
-          lastRevival: pet.lastRevival, // Preserve revival timestamp
+          lastRevival: 0, // Clear revival timestamp - pet is now in normal interaction mode
           createdAt: pet.createdAt, // Keep createdAt for streak counting
           originalCreatedAt: pet.originalCreatedAt, // Keep original creation time
         };
