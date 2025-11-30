@@ -1,8 +1,9 @@
 import { PressStart2P_400Regular, useFonts } from '@expo-google-fonts/press-start-2p';
 import { useRouter } from 'expo-router';
-import React from 'react';
+import React, { useState } from 'react';
 import { Image, Pressable, StyleSheet, Text, View } from 'react-native';
 import * as Haptics from 'expo-haptics';
+import { MenuModal } from './MenuModal';
 
 interface FavoriteButtonsProps {
   onHomePress?: () => void;
@@ -18,6 +19,7 @@ export function FavoriteButtons({
   onMenuPress,
 }: FavoriteButtonsProps) {
   const router = useRouter();
+  const [showMenuModal, setShowMenuModal] = useState(false);
   const [fontsLoaded] = useFonts({
     PressStart2P_400Regular,
   });
@@ -54,7 +56,7 @@ export function FavoriteButtons({
     if (onMenuPress) {
       onMenuPress();
     } else {
-      console.log('Open Menu');
+      setShowMenuModal(true);
     }
   };
 
@@ -63,68 +65,74 @@ export function FavoriteButtons({
   }
 
   return (
-    <View style={styles.buttonsArea}>
-      <View style={styles.buttonGroup}>
-        <Pressable
-          onPress={handleHomePress}
-          style={({ pressed }) => [
-            styles.button,
-            pressed ? styles.buttonPressed : styles.buttonRaised,
-          ]}
-        >
-          <Image 
-            source={require('../../assets/icons/home.png')} 
-            style={styles.buttonImage}
-            resizeMode="contain"
-          />
-        </Pressable>
-        <Text style={styles.buttonLabel}>HOME</Text>
+    <>
+      <View style={styles.buttonsArea}>
+        <View style={styles.buttonGroup}>
+          <Pressable
+            onPress={handleHomePress}
+            style={({ pressed }) => [
+              styles.button,
+              pressed ? styles.buttonPressed : styles.buttonRaised,
+            ]}
+          >
+            <Image 
+              source={require('../../assets/icons/home.png')} 
+              style={styles.buttonImage}
+              resizeMode="contain"
+            />
+          </Pressable>
+          <Text style={styles.buttonLabel}>HOME</Text>
+        </View>
+        <View style={styles.buttonGroup}>
+          <Pressable
+            onPress={handleTodoPress}
+            style={({ pressed }) => [
+              styles.button,
+              pressed ? styles.buttonPressed : styles.buttonRaised,
+            ]}
+          >
+            <Image 
+              source={require('../../assets/icons/todo.png')} 
+              style={styles.buttonImage}
+              resizeMode="contain"
+            />
+          </Pressable>
+          <Text style={styles.buttonLabel}>TO DO</Text>
+        </View>
+        <View style={styles.buttonGroup}>
+          <Pressable
+            onPress={handlePetPress}
+            style={({ pressed }) => [
+              styles.button,
+              pressed ? styles.buttonPressed : styles.buttonRaised,
+            ]}
+          >
+            <Image 
+              source={require('../../assets/icons/pet.png')} 
+              style={styles.buttonImage}
+              resizeMode="contain"
+            />
+          </Pressable>
+          <Text style={styles.buttonLabel}>PET</Text>
+        </View>
+        <View style={styles.buttonGroup}>
+          <Pressable
+            onPress={handleMenuPress}
+            style={({ pressed }) => [
+              styles.button,
+              pressed ? styles.buttonPressed : styles.buttonRaised,
+            ]}
+          >
+            <Text style={styles.buttonIcon}>☰</Text>
+          </Pressable>
+          <Text style={styles.buttonLabel}>MENU</Text>
+        </View>
       </View>
-      <View style={styles.buttonGroup}>
-        <Pressable
-          onPress={handleTodoPress}
-          style={({ pressed }) => [
-            styles.button,
-            pressed ? styles.buttonPressed : styles.buttonRaised,
-          ]}
-        >
-          <Image 
-            source={require('../../assets/icons/todo.png')} 
-            style={styles.buttonImage}
-            resizeMode="contain"
-          />
-        </Pressable>
-        <Text style={styles.buttonLabel}>TO DO</Text>
-      </View>
-      <View style={styles.buttonGroup}>
-        <Pressable
-          onPress={handlePetPress}
-          style={({ pressed }) => [
-            styles.button,
-            pressed ? styles.buttonPressed : styles.buttonRaised,
-          ]}
-        >
-          <Image 
-            source={require('../../assets/icons/pet.png')} 
-            style={styles.buttonImage}
-            resizeMode="contain"
-          />
-        </Pressable>
-        <Text style={styles.buttonLabel}>PET</Text>
-      </View>
-      <View style={styles.buttonGroup}>
-        <Pressable
-          onPress={handleMenuPress}
-          style={({ pressed }) => [
-            styles.button,
-            pressed ? styles.buttonPressed : styles.buttonRaised,
-          ]}
-        >
-          <Text style={styles.buttonIcon}>☰</Text>
-        </Pressable>
-        <Text style={styles.buttonLabel}>MENU</Text>
-      </View>
-    </View>
+      <MenuModal
+        visible={showMenuModal}
+        onClose={() => setShowMenuModal(false)}
+      />
+    </>
   );
 }
 

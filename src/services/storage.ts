@@ -10,6 +10,8 @@ const CURRENT_PET_TYPE_KEY = '@palmvoice_current_pet_type';
 const PURCHASED_PETS_STORAGE_KEY = '@palmvoice_purchased_pets';
 const REVIVAL_TOKENS_KEY = '@palmvoice_revival_tokens';
 const HEALTH_POTIONS_KEY = '@palmvoice_health_potions';
+const SOUND_ENABLED_KEY = '@palmvoice_sound_enabled';
+const NOTIFICATIONS_ENABLED_KEY = '@palmvoice_notifications_enabled';
 
 // Helper function to get pet storage key by type
 function getPetStorageKey(petType: string): string {
@@ -354,5 +356,84 @@ export async function loadHealthPotions(): Promise<number> {
   } catch (error) {
     console.error('Error loading health potions:', error);
     return 0;
+  }
+}
+
+/**
+ * Save sound enabled setting
+ */
+export async function saveSoundEnabled(enabled: boolean): Promise<void> {
+  try {
+    await AsyncStorage.setItem(SOUND_ENABLED_KEY, enabled ? 'true' : 'false');
+    console.log('Sound enabled saved to storage:', enabled);
+  } catch (error) {
+    console.error('Error saving sound enabled:', error);
+    throw error;
+  }
+}
+
+/**
+ * Load sound enabled setting
+ */
+export async function loadSoundEnabled(): Promise<boolean> {
+  try {
+    const value = await AsyncStorage.getItem(SOUND_ENABLED_KEY);
+    if (value === null) {
+      return true; // Default to enabled
+    }
+    return value === 'true';
+  } catch (error) {
+    console.error('Error loading sound enabled:', error);
+    return true; // Default to enabled
+  }
+}
+
+/**
+ * Save notifications enabled setting
+ */
+export async function saveNotificationsEnabled(enabled: boolean): Promise<void> {
+  try {
+    await AsyncStorage.setItem(NOTIFICATIONS_ENABLED_KEY, enabled ? 'true' : 'false');
+    console.log('Notifications enabled saved to storage:', enabled);
+  } catch (error) {
+    console.error('Error saving notifications enabled:', error);
+    throw error;
+  }
+}
+
+/**
+ * Load notifications enabled setting
+ */
+export async function loadNotificationsEnabled(): Promise<boolean> {
+  try {
+    const value = await AsyncStorage.getItem(NOTIFICATIONS_ENABLED_KEY);
+    if (value === null) {
+      return true; // Default to enabled
+    }
+    return value === 'true';
+  } catch (error) {
+    console.error('Error loading notifications enabled:', error);
+    return true; // Default to enabled
+  }
+}
+
+/**
+ * Clear all app data from AsyncStorage
+ */
+export async function clearAllData(): Promise<void> {
+  try {
+    // Get all keys
+    const allKeys = await AsyncStorage.getAllKeys();
+    
+    // Filter to only PalmVoice keys
+    const palmVoiceKeys = allKeys.filter(key => key.startsWith('@palmvoice_'));
+    
+    // Remove all PalmVoice data
+    await AsyncStorage.multiRemove(palmVoiceKeys);
+    
+    console.log('All PalmVoice data cleared from storage');
+  } catch (error) {
+    console.error('Error clearing all data:', error);
+    throw error;
   }
 }

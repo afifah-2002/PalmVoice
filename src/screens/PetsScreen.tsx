@@ -2760,33 +2760,6 @@ export function PetsScreen() {
                       <View style={styles.useItemButtonPlaceholder} />
                     )}
                   </View>
-                  
-                  {/* Health Potion */}
-                  <View style={styles.coinsItemRowFixed}>
-                    <Image
-                      source={require('../../assets/pets/shop/potion.png')}
-                      style={styles.coinsItemIconSmall}
-                      resizeMode="contain"
-                    />
-                    <Text style={[styles.coinsItemTextFixed, styles.coinsPopupDarkText]}>
-                      POTIONS: {healthPotions ?? 0}
-                    </Text>
-                    {/* Potion USE button - only when pet has 1-3 hearts */}
-                    {healthPotions > 0 && pet && displayedHealth >= 1 && displayedHealth <= 3 ? (
-                      <TouchableOpacity
-                        onPress={() => {
-                          useHealthPotion();
-                          setShowCoinsPopup(false);
-                        }}
-                        style={styles.useItemButtonSmall}
-                        activeOpacity={0.8}
-                      >
-                        <Text style={styles.useItemButtonTextSmall}>USE</Text>
-                      </TouchableOpacity>
-                    ) : (
-                      <View style={styles.useItemButtonPlaceholder} />
-                    )}
-                  </View>
                 </View>
                 
                 <TouchableOpacity
