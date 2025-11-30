@@ -12,6 +12,7 @@ const REVIVAL_TOKENS_KEY = '@palmvoice_revival_tokens';
 const HEALTH_POTIONS_KEY = '@palmvoice_health_potions';
 const SOUND_ENABLED_KEY = '@palmvoice_sound_enabled';
 const NOTIFICATIONS_ENABLED_KEY = '@palmvoice_notifications_enabled';
+const LAST_DAILY_REWARD_KEY = '@palmvoice_last_daily_reward';
 
 // Helper function to get pet storage key by type
 function getPetStorageKey(petType: string): string {
@@ -415,6 +416,59 @@ export async function loadNotificationsEnabled(): Promise<boolean> {
     console.error('Error loading notifications enabled:', error);
     return true; // Default to enabled
   }
+}
+
+/**
+ * Save last daily reward timestamp
+ */
+export async function saveLastDailyReward(timestamp: number): Promise<void> {
+  try {
+    await AsyncStorage.setItem(LAST_DAILY_REWARD_KEY, timestamp.toString());
+    console.log('Last daily reward saved to storage:', timestamp);
+  } catch (error) {
+    console.error('Error saving last daily reward:', error);
+    throw error;
+  }
+}
+
+/**
+ * Load last daily reward timestamp
+ */
+export async function loadLastDailyReward(): Promise<number | null> {
+  try {
+    const value = await AsyncStorage.getItem(LAST_DAILY_REWARD_KEY);
+    if (value === null) {
+      return null;
+    }
+    const timestamp = parseInt(value, 10);
+    console.log('Last daily reward loaded from storage:', timestamp);
+    return isNaN(timestamp) ? null : timestamp;
+  } catch (error) {
+    console.error('Error loading last daily reward:', error);
+    return null;
+  }
+}
+
+/**
+ * Check if user is eligible for daily reward (new day since last reward)
+ */
+export function isEligibleForDailyReward(lastRewardTimestamp: number | null): boolean {
+  if (lastRewardTimestamp === null) {
+    return true; // First time, eligible
+  }
+  
+  // Get midnight of today (12 AM)
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const todayMidnight = today.getTime();
+  
+  // Get midnight of the day when last reward was given
+  const lastRewardDate = new Date(lastRewardTimestamp);
+  lastRewardDate.setHours(0, 0, 0, 0);
+  const lastRewardMidnight = lastRewardDate.getTime();
+  
+  // Eligible if today's midnight is after last reward's midnight
+  return todayMidnight > lastRewardMidnight;
 }
 
 /**

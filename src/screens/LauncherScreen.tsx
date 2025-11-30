@@ -2,12 +2,23 @@ import { PressStart2P_400Regular, useFonts } from '@expo-google-fonts/press-star
 import { useRouter } from 'expo-router';
 import React, { useEffect, useState } from 'react';
 import { Image, ImageBackground, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { DailyRewardPopup } from '../components/DailyRewardPopup';
 import { FavoriteButtons } from '../components/FavoriteButtons';
 import { HeaderBar } from '../components/HeaderBar';
 import { LCDStripeEffect } from '../components/LCDStripeEffect';
 import { PALM_THEMES, Theme } from '../constants/palmThemes';
 import { useTheme } from '../contexts/ThemeContext';
-import { loadCoins, loadPet, loadPetsTheme, loadTasks } from '../services/storage';
+import {
+  loadCoins,
+  loadLastDailyReward,
+  loadPet,
+  loadPetsTheme,
+  loadTasks,
+  saveCoins,
+  saveLastDailyReward,
+  isEligibleForDailyReward,
+} from '../services/storage';
+import { scheduleDailyNotifications } from '../services/notificationService';
 import { Task } from '../types/Task';
 
 type PetsTheme = 'serene' | 'purple-skies' | 'orange-kiss' | 'cherryblossom' | 'feelslike2002' | 'feelslikechristmas' | 'fishpond' | 'glowy' | 'magical' | 'minecraft' | 'ohsoflowery' | 'peace' | 'secretgarden' | 'snowynight' | 'therapeutic' | 'waterfall' | 'anime' | 'autumn' | 'infinite' | 'moonlight';
@@ -189,6 +200,7 @@ export default function LauncherScreen() {
   const [tasks, setTasks] = useState<Task[]>([]);
   const [currentCatFrame, setCurrentCatFrame] = useState(0);
   const [petsTheme, setPetsTheme] = useState<PetsTheme>('serene');
+  const [showDailyReward, setShowDailyReward] = useState(false);
   
   const { currentTheme, setTheme, currentMode, setMode, customModes } = useTheme();
 
@@ -214,6 +226,30 @@ export default function LauncherScreen() {
         setPetsTheme(savedTheme as PetsTheme);
       }
     });
+
+    // Check for daily reward eligibility
+    loadLastDailyReward().then((lastReward) => {
+      if (isEligibleForDailyReward(lastReward)) {
+        // Award 1 coin
+        loadCoins().then((currentCoins) => {
+          const newCoins = currentCoins + 1;
+          saveCoins(newCoins);
+          setCoins(newCoins);
+          
+          // Save current timestamp as last reward
+          const now = Date.now();
+          saveLastDailyReward(now);
+          
+          // Show popup after a short delay
+          setTimeout(() => {
+            setShowDailyReward(true);
+          }, 500);
+        });
+      }
+    });
+
+    // Schedule daily notifications
+    scheduleDailyNotifications();
   }, []);
 
   // Animate pet sit frames
@@ -442,7 +478,7 @@ export default function LauncherScreen() {
                           style={styles.healthBar}
                           resizeMode="contain"
                         />
-                      </View>
+              </View>
 
                       {/* Coin Count */}
                       <View style={styles.coinsContainer}>
@@ -452,8 +488,8 @@ export default function LauncherScreen() {
                           resizeMode="contain"
                         />
                         <Text style={[styles.coinText, { color: '#FFFFFF' }]}>{coins} coins</Text>
-                      </View>
-
+            </View>
+            
                       {/* Streak Count */}
                       <View style={styles.streakContainer}>
                         <Image
@@ -465,7 +501,7 @@ export default function LauncherScreen() {
                           {calculateStreak(pet)} DAY{calculateStreak(pet) !== 1 ? 'S' : ''}
                         </Text>
                       </View>
-                    </View>
+          </View>
 
                     {/* Bottom Section: Quick Actions */}
                     <View style={styles.petActionsBottom}>
@@ -500,7 +536,7 @@ export default function LauncherScreen() {
                   >
                     <Text style={[styles.actionButtonText, { color: '#FFFFFF' }]}>CREATE PET</Text>
                   </TouchableOpacity>
-                </View>
+              </View>
               )}
               </View>
             </ImageBackground>
@@ -521,19 +557,19 @@ export default function LauncherScreen() {
                 <View style={[styles.taskStatBox, { backgroundColor: 'rgba(76, 175, 80, 0.2)', borderColor: '#4CAF50' }]}>
                   <Text style={styles.taskStatNumber}>{todayTasks.length}</Text>
                   <Text style={[styles.taskStatLabel, { color: '#4CAF50' }]}>TODAY</Text>
-                </View>
-                
+            </View>
+
                 {/* Overdue Stat */}
                 <View style={[styles.taskStatBox, { backgroundColor: overdueTasks.length > 0 ? 'rgba(255, 82, 82, 0.2)' : 'rgba(158, 158, 158, 0.2)', borderColor: overdueTasks.length > 0 ? '#FF5252' : '#9E9E9E' }]}>
                   <Text style={[styles.taskStatNumber, { color: overdueTasks.length > 0 ? '#FF5252' : '#9E9E9E' }]}>{overdueTasks.length}</Text>
                   <Text style={[styles.taskStatLabel, { color: overdueTasks.length > 0 ? '#FF5252' : '#9E9E9E' }]}>OVERDUE</Text>
-                </View>
-                
+            </View>
+
                 {/* Total Tasks Stat */}
                 <View style={[styles.taskStatBox, { backgroundColor: 'rgba(100, 181, 246, 0.2)', borderColor: '#64B5F6' }]}>
                   <Text style={[styles.taskStatNumber, { color: '#64B5F6' }]}>{tasks.filter(t => !t.completed).length}</Text>
                   <Text style={[styles.taskStatLabel, { color: '#64B5F6' }]}>TOTAL</Text>
-                </View>
+              </View>
               </View>
 
               {/* Action Button */}
@@ -550,6 +586,13 @@ export default function LauncherScreen() {
         {/* Favorite Buttons - Gray Bezel Bottom */}
         <FavoriteButtons />
       </View>
+
+      {/* Daily Reward Popup */}
+      <DailyRewardPopup
+        visible={showDailyReward}
+        onClose={() => setShowDailyReward(false)}
+        coins={coins}
+      />
     </View>
   );
 }

@@ -15,6 +15,8 @@ import {
   saveSoundEnabled,
   saveNotificationsEnabled,
 } from '../services/storage';
+import { playButtonTap } from '../services/soundService';
+import { updateNotificationSchedule } from '../services/notificationService';
 import Constants from 'expo-constants';
 
 interface MenuModalProps {
@@ -136,22 +138,41 @@ export function MenuModal({ visible, onClose }: MenuModalProps) {
     }
   }, [visible]);
 
+  // Helper function to play keyboard clack sound
+  const playClickSound = async () => {
+    if (soundEnabled) {
+      try {
+        await playButtonTap();
+      } catch (error) {
+        // Silently fail
+      }
+    }
+  };
+
   const handleToggleSound = async () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     const newValue = !soundEnabled;
     setSoundEnabled(newValue);
     await saveSoundEnabled(newValue);
+    // Play sound even when toggling (before it's saved)
+    if (newValue) {
+      await playButtonTap();
+    }
   };
 
   const handleToggleNotifications = async () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    await playClickSound();
     const newValue = !notificationsEnabled;
     setNotificationsEnabled(newValue);
     await saveNotificationsEnabled(newValue);
+    // Update notification schedule
+    await updateNotificationSchedule();
   };
 
   const handleClearAllData = async () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    await playClickSound();
     try {
       await clearAllData();
       // Reset stats
@@ -207,7 +228,10 @@ export function MenuModal({ visible, onClose }: MenuModalProps) {
             >
               {/* Close Button */}
               <TouchableOpacity
-                onPress={onClose}
+                onPress={async () => {
+                  await playClickSound();
+                  onClose();
+                }}
                 style={[
                   styles.closeButton,
                   {
@@ -224,8 +248,9 @@ export function MenuModal({ visible, onClose }: MenuModalProps) {
               {/* Back Button (when not on menu) */}
               {currentSection !== 'menu' && (
                 <TouchableOpacity
-                  onPress={() => {
+                  onPress={async () => {
                     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                    await playClickSound();
                     setCurrentSection('menu');
                   }}
                   style={[
@@ -252,24 +277,27 @@ export function MenuModal({ visible, onClose }: MenuModalProps) {
                   <View style={styles.buttonsContainer}>
                     <MenuButton
                       label="STATS"
-                      onPress={() => {
+                      onPress={async () => {
                         Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+                        await playClickSound();
                         setCurrentSection('stats');
                       }}
                       theme={theme}
                     />
                     <MenuButton
                       label="ABOUT"
-                      onPress={() => {
+                      onPress={async () => {
                         Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+                        await playClickSound();
                         setCurrentSection('about');
                       }}
                       theme={theme}
                     />
                     <MenuButton
                       label="SETTINGS"
-                      onPress={() => {
+                      onPress={async () => {
                         Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+                        await playClickSound();
                         setCurrentSection('settings');
                       }}
                       theme={theme}
@@ -291,7 +319,7 @@ export function MenuModal({ visible, onClose }: MenuModalProps) {
                     <AboutSection label="APP VERSION" value={appVersion} theme={theme} />
                     <AboutSection
                       label="CREDITS"
-                      value="PALMVOICE\nCREATED WITH ❤️ RETRO\nINSPIRED"
+                      value="PALMVOICE\nCREATED WITH 💗\nRETRO\nINSPIRED"
                       theme={theme}
                     />
                     <AboutSection
@@ -418,15 +446,17 @@ const StatRow = ({ label, value, theme }: { label: string; value: string; theme:
 
 // About Section Component
 const AboutSection = ({ label, value, theme }: { label: string; value: string; theme: any }) => {
-  const lines = value.split('\n');
+  const lines = value.split('\n').filter(line => line.trim() !== '');
   return (
     <View style={styles.aboutSection}>
       <Text style={[styles.aboutLabel, { color: theme.color || '#8B9B6A' }]}>{label}</Text>
-      {lines.map((line, index) => (
-        <Text key={index} style={[styles.aboutValue, { color: theme.modalText || '#FFFFFF' }]}>
-          {line}
-        </Text>
-      ))}
+      <View style={styles.aboutValueContainer}>
+        {lines.map((line, index) => (
+          <Text key={index} style={[styles.aboutValue, { color: theme.modalText || '#FFFFFF' }]}>
+            {line}
+          </Text>
+        ))}
+      </View>
     </View>
   );
 };
@@ -718,17 +748,20 @@ const styles = StyleSheet.create({
     gap: 20,
   },
   aboutSection: {
-    marginBottom: 16,
+    marginBottom: 20,
   },
   aboutLabel: {
     fontFamily: 'PressStart2P_400Regular',
     fontSize: 10,
     marginBottom: 8,
   },
+  aboutValueContainer: {
+    gap: 4,
+  },
   aboutValue: {
     fontFamily: 'PressStart2P_400Regular',
     fontSize: 8,
-    lineHeight: 14,
+    lineHeight: 12,
   },
   settingsContainer: {
     gap: 0,

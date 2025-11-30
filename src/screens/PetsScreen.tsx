@@ -9,6 +9,7 @@ import { PixelKeyboard } from '../components/PixelKeyboard';
 import { PALM_THEMES, PalmTheme } from '../constants/palmThemes';
 import { useTheme } from '../contexts/ThemeContext';
 import { deletePet, loadCoins, loadHealthPotions, loadPet, loadPetsTheme, loadPurchasedPets, loadPurchasedThemes, loadRevivalTokens, loadTasks, saveCoins, saveHealthPotions, savePet, savePetsTheme, savePurchasedPets, savePurchasedThemes, saveRevivalTokens } from '../services/storage';
+import { updatePetNameInNotifications } from '../services/notificationService';
 import { Task } from '../types/Task';
 
 type PetsTheme = 'serene' | 'purple-skies' | 'orange-kiss' | 'cherryblossom' | 'feelslike2002' | 'feelslikechristmas' | 'fishpond' | 'glowy' | 'magical' | 'minecraft' | 'ohsoflowery' | 'peace' | 'secretgarden' | 'snowynight' | 'therapeutic' | 'waterfall' | 'anime' | 'autumn' | 'infinite' | 'moonlight';
@@ -1539,14 +1540,16 @@ export function PetsScreen() {
     }
   };
 
-  const handleRenameSubmit = () => {
+  const handleRenameSubmit = async () => {
     if (renameInput.trim() && pet) {
       const renamedPet: Pet = {
         ...pet,
         name: renameInput.trim().replace(/\s+/g, '').toUpperCase(), // Remove all spaces
       };
       setPet(renamedPet);
-      savePet(renamedPet, renamedPet.type); // Save to storage
+      await savePet(renamedPet, renamedPet.type); // Save to storage
+      // Update notifications with new pet name
+      await updatePetNameInNotifications();
       setShowRenameModal(false);
       setRenameInput('');
       setShowKeyboard(false);
@@ -2025,7 +2028,7 @@ export function PetsScreen() {
                   )}
                   <Text style={[styles.dropdownLabel, { color: (ALL_THEMES[petsTheme] || PETS_THEMES[petsTheme] || ALL_THEMES['serene']).color }]}>
                     {pet ? pet.type.toUpperCase() : 'None'}
-                  </Text>
+                </Text>
                 </View>
                 <Text style={[styles.dropdownArrow, { color: (ALL_THEMES[petsTheme] || PETS_THEMES[petsTheme] || ALL_THEMES['serene']).color }]}>▼</Text>
               </Pressable>
@@ -2075,7 +2078,7 @@ export function PetsScreen() {
                         <Text style={[styles.dropdownOptionText, { color: purchasedPets.includes('puppy') ? (ALL_THEMES[petsTheme] || PETS_THEMES[petsTheme] || ALL_THEMES['serene']).color : '#888888' }]}>
                           Puppy {!purchasedPets.includes('puppy') && '🔒'}
                         </Text>
-                      </View>
+                </View>
                   </TouchableOpacity>
                     {purchasedPets.includes('puppy') && (
                       <TouchableOpacity
@@ -2084,8 +2087,8 @@ export function PetsScreen() {
                       >
                         <Text style={styles.deleteButtonText}>🗑️</Text>
                       </TouchableOpacity>
-                    )}
-                </View>
+              )}
+            </View>
                   
                   {/* Panda */}
                   <View style={[styles.dropdownOptionRow, { borderBottomColor: 'rgba(255, 255, 255, 0.2)', borderBottomWidth: 1, opacity: purchasedPets.includes('panda') ? 1 : 0.6 }]}>
@@ -2120,7 +2123,7 @@ export function PetsScreen() {
                         <Image source={require('../../assets/pets/koala/koalasit2.png')} style={[styles.dropdownOptionIcon, !purchasedPets.includes('koala') && { opacity: 0.5 }]} resizeMode="contain" />
                         <Text style={[styles.dropdownOptionText, { color: purchasedPets.includes('koala') ? (ALL_THEMES[petsTheme] || PETS_THEMES[petsTheme] || ALL_THEMES['serene']).color : '#888888' }]}>
                           Koala {!purchasedPets.includes('koala') && '🔒'}
-                        </Text>
+                  </Text>
                       </View>
                     </TouchableOpacity>
                     {purchasedPets.includes('koala') && (
