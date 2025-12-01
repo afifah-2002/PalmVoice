@@ -1980,7 +1980,7 @@ export function PetsScreen() {
       <View style={styles.bezel}>
         <View style={styles.bezelTop}>
           {/* Palm Pilot branding */}
-          <Text style={styles.palmPilotText}>Palm Pet</Text>
+          <Text style={styles.palmPilotText}>Palm Voice</Text>
           <View style={styles.logo3Com}>
             <Text style={styles.logo3ComText}>3Com</Text>
           </View>
@@ -2833,6 +2833,33 @@ export function PetsScreen() {
                       <TouchableOpacity
                         onPress={() => {
                           handleRevive();
+                          setShowCoinsPopup(false);
+                        }}
+                        style={styles.useItemButtonSmall}
+                        activeOpacity={0.8}
+                      >
+                        <Text style={styles.useItemButtonTextSmall}>USE</Text>
+                      </TouchableOpacity>
+                    ) : (
+                      <View style={styles.useItemButtonPlaceholder} />
+                    )}
+                  </View>
+                  
+                  {/* Health Potion */}
+                  <View style={styles.coinsItemRowFixed}>
+                    <Image
+                      source={require('../../assets/pets/shop/potion.png')}
+                      style={styles.coinsItemIconSmall}
+                      resizeMode="contain"
+                    />
+                    <Text style={[styles.coinsItemTextFixed, styles.coinsPopupDarkText]}>
+                      POTIONS: {healthPotions ?? 0}
+                    </Text>
+                    {/* Potion USE button - only when pet is alive (1-4 hearts) and has potions */}
+                    {healthPotions > 0 && pet && displayedHealth > 0 && displayedHealth < 5 ? (
+                      <TouchableOpacity
+                        onPress={async () => {
+                          await useHealthPotion();
                           setShowCoinsPopup(false);
                         }}
                         style={styles.useItemButtonSmall}

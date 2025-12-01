@@ -377,7 +377,7 @@ export default function LauncherScreen() {
       {/* Bezel with Palm Pilot branding */}
       <View style={styles.bezel}>
         <View style={styles.bezelTop}>
-          <Text style={styles.palmPilotText}>Palm Pet</Text>
+          <Text style={styles.palmPilotText}>Palm Voice</Text>
           <View style={styles.logo3Com}>
             <Text style={styles.logo3ComText}>3Com</Text>
           </View>
