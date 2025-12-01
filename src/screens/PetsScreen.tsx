@@ -8,7 +8,7 @@ import { FavoriteButtons } from '../components/FavoriteButtons';
 import { PixelKeyboard } from '../components/PixelKeyboard';
 import { PALM_THEMES, PalmTheme } from '../constants/palmThemes';
 import { useTheme } from '../contexts/ThemeContext';
-import { deletePet, loadCoins, loadHealthPotions, loadPet, loadPetsTheme, loadPurchasedPets, loadPurchasedThemes, loadRevivalTokens, loadTasks, saveCoins, saveHealthPotions, savePet, savePetsTheme, savePurchasedPets, savePurchasedThemes, saveRevivalTokens } from '../services/storage';
+import { deletePet, loadCoins, loadHealthPotions, loadHeartTooltipSeen, loadPet, loadPetsTheme, loadPurchasedPets, loadPurchasedThemes, loadRevivalTokens, loadTasks, saveCoins, saveHealthPotions, saveHeartTooltipSeen, savePet, savePetsTheme, savePurchasedPets, savePurchasedThemes, saveRevivalTokens } from '../services/storage';
 import { updatePetNameInNotifications } from '../services/notificationService';
 import { Task } from '../types/Task';
 
@@ -280,6 +280,9 @@ export function PetsScreen() {
   const tryAgainPulseAnim = useRef(new Animated.Value(1)).current;
   const [timeUntilMidnight, setTimeUntilMidnight] = useState('');
   const [showHealthDecayTimer, setShowHealthDecayTimer] = useState(false);
+  const [showHeartTooltip, setShowHeartTooltip] = useState(false);
+  const heartTooltipOpacity = useRef(new Animated.Value(0)).current;
+  const heartTooltipScale = useRef(new Animated.Value(1)).current;
   
   // Game state
   const [showGame, setShowGame] = useState(false);
@@ -623,6 +626,60 @@ export function PetsScreen() {
       setTasks(loadedTasks);
     });
   }, []);
+  
+  // Check if heart tooltip should be shown when pet loads
+  useEffect(() => {
+    if (!pet) return;
+    
+    let showTimeout: NodeJS.Timeout;
+    let fadeTimeout: NodeJS.Timeout;
+    
+    loadHeartTooltipSeen().then((seen) => {
+      if (!seen) {
+        // Show tooltip after 2 seconds
+        showTimeout = setTimeout(() => {
+          setShowHeartTooltip(true);
+          // Pulse animation
+          Animated.loop(
+            Animated.sequence([
+              Animated.timing(heartTooltipScale, {
+                toValue: 1.1,
+                duration: 500,
+                useNativeDriver: true,
+              }),
+              Animated.timing(heartTooltipScale, {
+                toValue: 1,
+                duration: 500,
+                useNativeDriver: true,
+              }),
+            ])
+          ).start();
+          // Fade in
+          Animated.timing(heartTooltipOpacity, {
+            toValue: 1,
+            duration: 300,
+            useNativeDriver: true,
+          }).start();
+          // Auto-fade after 3 seconds
+          fadeTimeout = setTimeout(() => {
+            Animated.timing(heartTooltipOpacity, {
+              toValue: 0,
+              duration: 500,
+              useNativeDriver: true,
+            }).start(() => {
+              setShowHeartTooltip(false);
+              saveHeartTooltipSeen(true);
+            });
+          }, 3000);
+        }, 2000);
+      }
+    });
+    
+    return () => {
+      if (showTimeout) clearTimeout(showTimeout);
+      if (fadeTimeout) clearTimeout(fadeTimeout);
+    };
+  }, [pet]);
 
   // Save pets theme when it changes
   useEffect(() => {
@@ -1923,7 +1980,7 @@ export function PetsScreen() {
       <View style={styles.bezel}>
         <View style={styles.bezelTop}>
           {/* Palm Pilot branding */}
-          <Text style={styles.palmPilotText}>Palm Pilot</Text>
+          <Text style={styles.palmPilotText}>Palm Pet</Text>
           <View style={styles.logo3Com}>
             <Text style={styles.logo3ComText}>3Com</Text>
           </View>
@@ -2142,39 +2199,63 @@ export function PetsScreen() {
             {/* Health Bar and Coins - Top Right */}
             <View style={styles.topRightContainer}>
               {pet && (
-                <TouchableOpacity 
-                  key={`health-${displayedHealth}-${pet.lastFed}-${pet.lastPet}-${pet.lastPlay}`} 
-                  style={styles.healthBarContainer}
-                  onPress={() => setShowHealthDecayTimer(true)}
-                  activeOpacity={0.7}
-                >
-                  <Image 
-                    key={`heart-${displayedHealth}`}
-                    source={
-                      displayedHealth === 5 ? require('../../assets/pets/health/heart5 .png') :
-                      displayedHealth === 4 ? require('../../assets/pets/health/heart4.png') :
-                      displayedHealth === 3 ? require('../../assets/pets/health/heart3.png') :
-                      displayedHealth === 2 ? require('../../assets/pets/health/heart2.png') :
-                      displayedHealth === 1 ? require('../../assets/pets/health/heart1.png') :
-                      require('../../assets/pets/health/heart0.png')
-                    }
-                    style={styles.healthHeart}
-                    resizeMode="contain"
-                  />
-                  <Image 
-                    key={`bar-${displayedHealth}`}
-                    source={
-                      displayedHealth === 5 ? require('../../assets/pets/health/bar5.png') :
-                      displayedHealth === 4 ? require('../../assets/pets/health/bar4.png') :
-                      displayedHealth === 3 ? require('../../assets/pets/health/bar3.png') :
-                      displayedHealth === 2 ? require('../../assets/pets/health/bar2.png') :
-                      displayedHealth === 1 ? require('../../assets/pets/health/bar1.png') :
-                      require('../../assets/pets/health/bar0.png')
-                    }
-                    style={styles.healthBarImage}
-                    resizeMode="contain"
-                  />
-              </TouchableOpacity>
+                <View style={styles.healthBarWrapper}>
+                  <TouchableOpacity 
+                    key={`health-${displayedHealth}-${pet.lastFed}-${pet.lastPet}-${pet.lastPlay}`} 
+                    style={styles.healthBarContainer}
+                    onPress={() => {
+                      setShowHealthDecayTimer(true);
+                      // Hide tooltip forever when user taps hearts
+                      if (showHeartTooltip) {
+                        setShowHeartTooltip(false);
+                        saveHeartTooltipSeen(true);
+                      }
+                    }}
+                    activeOpacity={0.7}
+                  >
+                    <Image 
+                      key={`heart-${displayedHealth}`}
+                      source={
+                        displayedHealth === 5 ? require('../../assets/pets/health/heart5 .png') :
+                        displayedHealth === 4 ? require('../../assets/pets/health/heart4.png') :
+                        displayedHealth === 3 ? require('../../assets/pets/health/heart3.png') :
+                        displayedHealth === 2 ? require('../../assets/pets/health/heart2.png') :
+                        displayedHealth === 1 ? require('../../assets/pets/health/heart1.png') :
+                        require('../../assets/pets/health/heart0.png')
+                      }
+                      style={styles.healthHeart}
+                      resizeMode="contain"
+                    />
+                    <Image 
+                      key={`bar-${displayedHealth}`}
+                      source={
+                        displayedHealth === 5 ? require('../../assets/pets/health/bar5.png') :
+                        displayedHealth === 4 ? require('../../assets/pets/health/bar4.png') :
+                        displayedHealth === 3 ? require('../../assets/pets/health/bar3.png') :
+                        displayedHealth === 2 ? require('../../assets/pets/health/bar2.png') :
+                        displayedHealth === 1 ? require('../../assets/pets/health/bar1.png') :
+                        require('../../assets/pets/health/bar0.png')
+                      }
+                      style={styles.healthBarImage}
+                      resizeMode="contain"
+                    />
+                  </TouchableOpacity>
+                  
+                  {/* Heart Tooltip */}
+                  {showHeartTooltip && (
+                    <Animated.View
+                      style={[
+                        styles.heartTooltip,
+                        {
+                          opacity: heartTooltipOpacity,
+                          transform: [{ scale: heartTooltipScale }],
+                        },
+                      ]}
+                    >
+                      <Text style={styles.heartTooltipText}>TAP ME!</Text>
+                    </Animated.View>
+                  )}
+                </View>
               )}
               
               {/* Actions Dropdown */}
@@ -3114,20 +3195,6 @@ export function PetsScreen() {
                             </View>
                             <Text style={styles.shopCategoryTextModal}>ITEMS</Text>
                           </TouchableOpacity>
-
-                          {/* BUNDLES */}
-                          <TouchableOpacity 
-                            style={styles.shopCategoryButtonModal}
-                            activeOpacity={0.8}
-                          >
-                            <View style={styles.shopCategoryIcon}>
-                              <View style={styles.giftBoxIcon}>
-                                <View style={styles.giftBoxBody} />
-                                <View style={styles.giftBoxRibbon} />
-                              </View>
-                            </View>
-                            <Text style={styles.shopCategoryTextModal}>BUNDLES</Text>
-                          </TouchableOpacity>
                         </View>
                       </Animated.View>
                     </View>
@@ -3668,6 +3735,9 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 12,
   },
+  healthBarWrapper: {
+    position: 'relative',
+  },
   healthBarContainer: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -3690,6 +3760,28 @@ const styles = StyleSheet.create({
   healthBarImage: {
     width: 80,
     height: 24,
+  },
+  heartTooltip: {
+    position: 'absolute',
+    bottom: -32,
+    right: 0,
+    backgroundColor: '#FFD700',
+    borderWidth: 2,
+    borderColor: '#FFA500',
+    borderRadius: 4,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.3,
+    shadowRadius: 0,
+    elevation: 5,
+    zIndex: 1000,
+  },
+  heartTooltipText: {
+    fontFamily: 'PressStart2P_400Regular',
+    fontSize: 8,
+    color: '#000000',
   },
   petDisplayContainer: {
     position: 'absolute',
@@ -4396,10 +4488,10 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
   },
   shopCategoriesGrid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    justifyContent: 'space-between',
+    flexDirection: 'column',
+    alignItems: 'stretch',
     marginTop: 20,
+    gap: 12,
   },
   shopCategoryButton: {
     width: '47%',
@@ -4414,7 +4506,7 @@ const styles = StyleSheet.create({
     marginBottom: 15,
   },
   shopCategoryButtonModal: {
-    width: '47%',
+    width: '100%',
     backgroundColor: 'rgba(255, 229, 180, 0.8)',
     borderWidth: 3,
     borderColor: '#8B4513',
@@ -4423,7 +4515,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     minHeight: 120,
-    marginBottom: 15,
   },
   shopCategoryIcon: {
     width: 50,

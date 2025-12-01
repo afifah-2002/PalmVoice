@@ -3,6 +3,12 @@ module.exports = {
     name: 'PalmVoice',
     slug: 'PalmVoice',
     version: '1.0.0',
+    updates: {
+      url: 'https://u.expo.dev/78d1ba02-584d-4aff-925a-d2f7ac1eb890',
+    },
+    runtimeVersion: {
+      policy: 'appVersion',
+    },
     orientation: 'portrait',
     icon: './assets/images/icon.png',
     scheme: 'palmvoice',
@@ -49,6 +55,9 @@ module.exports = {
     },
     extra: {
       openaiApiKey: process.env.OPENAI_API_KEY,
+      eas: {
+        projectId: '78d1ba02-584d-4aff-925a-d2f7ac1eb890',
+      },
     },
   },
 };

@@ -13,6 +13,8 @@ const HEALTH_POTIONS_KEY = '@palmvoice_health_potions';
 const SOUND_ENABLED_KEY = '@palmvoice_sound_enabled';
 const NOTIFICATIONS_ENABLED_KEY = '@palmvoice_notifications_enabled';
 const LAST_DAILY_REWARD_KEY = '@palmvoice_last_daily_reward';
+const NOTIFICATIONS_SCHEDULED_KEY = '@palmvoice_notifications_scheduled';
+const HEART_TOOLTIP_SEEN_KEY = '@palmvoice_heart_tooltip_seen';
 
 // Helper function to get pet storage key by type
 function getPetStorageKey(petType: string): string {
@@ -469,6 +471,57 @@ export function isEligibleForDailyReward(lastRewardTimestamp: number | null): bo
   
   // Eligible if today's midnight is after last reward's midnight
   return todayMidnight > lastRewardMidnight;
+}
+
+/**
+ * Save notification scheduled status
+ */
+export async function saveNotificationsScheduled(scheduled: boolean): Promise<void> {
+  try {
+    await AsyncStorage.setItem(NOTIFICATIONS_SCHEDULED_KEY, scheduled ? 'true' : 'false');
+    console.log('Notifications scheduled status saved:', scheduled);
+  } catch (error) {
+    console.error('Error saving notifications scheduled status:', error);
+    throw error;
+  }
+}
+
+/**
+ * Load notification scheduled status
+ */
+export async function loadNotificationsScheduled(): Promise<boolean> {
+  try {
+    const value = await AsyncStorage.getItem(NOTIFICATIONS_SCHEDULED_KEY);
+    return value === 'true';
+  } catch (error) {
+    console.error('Error loading notifications scheduled status:', error);
+    return false;
+  }
+}
+
+/**
+ * Save heart tooltip seen status
+ */
+export async function saveHeartTooltipSeen(seen: boolean): Promise<void> {
+  try {
+    await AsyncStorage.setItem(HEART_TOOLTIP_SEEN_KEY, seen ? 'true' : 'false');
+  } catch (error) {
+    console.error('Error saving heart tooltip seen status:', error);
+    throw error;
+  }
+}
+
+/**
+ * Load heart tooltip seen status
+ */
+export async function loadHeartTooltipSeen(): Promise<boolean> {
+  try {
+    const value = await AsyncStorage.getItem(HEART_TOOLTIP_SEEN_KEY);
+    return value === 'true';
+  } catch (error) {
+    console.error('Error loading heart tooltip seen status:', error);
+    return false;
+  }
 }
 
 /**

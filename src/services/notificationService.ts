@@ -1,6 +1,11 @@
 import * as Notifications from 'expo-notifications';
 import { Platform } from 'react-native';
-import { loadNotificationsEnabled, loadPet } from './storage';
+import {
+  loadNotificationsEnabled,
+  loadNotificationsScheduled,
+  loadPet,
+  saveNotificationsScheduled,
+} from './storage';
 
 // Configure notification behavior
 Notifications.setNotificationHandler({
@@ -56,6 +61,7 @@ export async function requestNotificationPermissions(): Promise<boolean> {
 export async function cancelAllNotifications(): Promise<void> {
   try {
     await Notifications.cancelAllScheduledNotificationsAsync();
+    await saveNotificationsScheduled(false);
     console.log('All notifications cancelled');
   } catch (error) {
     console.error('Error cancelling notifications:', error);
@@ -63,7 +69,7 @@ export async function cancelAllNotifications(): Promise<void> {
 }
 
 /**
- * Schedule daily notifications (3 times per day)
+ * Schedule daily notification (once per day - pet reminder at 9:00 AM)
  */
 export async function scheduleDailyNotifications(): Promise<void> {
   try {
@@ -72,6 +78,14 @@ export async function scheduleDailyNotifications(): Promise<void> {
     if (!notificationsEnabled) {
       console.log('Notifications disabled, skipping schedule');
       await cancelAllNotifications();
+      await saveNotificationsScheduled(false);
+      return;
+    }
+
+    // Check if notifications are already scheduled to prevent spam
+    const alreadyScheduled = await loadNotificationsScheduled();
+    if (alreadyScheduled) {
+      console.log('Notifications already scheduled, skipping');
       return;
     }
 
@@ -82,15 +96,15 @@ export async function scheduleDailyNotifications(): Promise<void> {
       return;
     }
 
-    // Cancel existing notifications
+    // Cancel any existing notifications first
     await cancelAllNotifications();
 
-    // Get pet name for the first notification
+    // Get pet name for the notification
     const pet = await loadPet();
     const petName = pet?.name || 'your pet';
 
-    // Schedule 3 daily notifications with animated, pixelated, cartoon-like style
-    // 1. Morning: "Yo [petname] misses you" - 9:00 AM
+    // Schedule 1 daily notification with animated, pixelated, cartoon-like style
+    // Morning: "Yo [petname] misses you" - 9:00 AM
     await Notifications.scheduleNotificationAsync({
       content: {
         title: '✨ PALMVOICE ✨',
@@ -109,43 +123,9 @@ export async function scheduleDailyNotifications(): Promise<void> {
       },
     });
 
-    // 2. Afternoon: "Make sure you completed your tasks" - 2:00 PM
-    await Notifications.scheduleNotificationAsync({
-      content: {
-        title: '✨ PALMVOICE ✨',
-        body: `📋 TASK TIME! 📋\n\n(ﾉ◕ヮ◕)ﾉ*:･ﾟ✧\nMAKE SURE YOU COMPLETED\nYOUR TASKS! ✨✓✨`,
-        sound: true,
-        priority: Notifications.AndroidNotificationPriority.HIGH,
-        data: {
-          type: 'task_reminder',
-        },
-      },
-      trigger: {
-        hour: 14,
-        minute: 0,
-        repeats: true,
-      },
-    });
-
-    // 3. Evening: "Make sure to open app for daily bonus" - 6:00 PM
-    await Notifications.scheduleNotificationAsync({
-      content: {
-        title: '✨ PALMVOICE ✨',
-        body: `🪙 DAILY BONUS TIME! 🪙\n\n( ﾟヮﾟ) ╯\nMAKE SURE TO OPEN APP\nFOR DAILY BONUS! 💰✨`,
-        sound: true,
-        priority: Notifications.AndroidNotificationPriority.HIGH,
-        data: {
-          type: 'daily_bonus',
-        },
-      },
-      trigger: {
-        hour: 18,
-        minute: 0,
-        repeats: true,
-      },
-    });
-
-    console.log('Daily notifications scheduled successfully');
+    // Mark as scheduled
+    await saveNotificationsScheduled(true);
+    console.log('Daily notification scheduled successfully');
   } catch (error) {
     console.error('Error scheduling notifications:', error);
   }
@@ -157,6 +137,8 @@ export async function scheduleDailyNotifications(): Promise<void> {
 export async function updateNotificationSchedule(): Promise<void> {
   const notificationsEnabled = await loadNotificationsEnabled();
   if (notificationsEnabled) {
+    // Reset scheduled status so it can be rescheduled
+    await saveNotificationsScheduled(false);
     await scheduleDailyNotifications();
   } else {
     await cancelAllNotifications();
@@ -169,6 +151,8 @@ export async function updateNotificationSchedule(): Promise<void> {
 export async function updatePetNameInNotifications(): Promise<void> {
   const notificationsEnabled = await loadNotificationsEnabled();
   if (notificationsEnabled) {
+    // Reset scheduled status so it can be rescheduled with new name
+    await saveNotificationsScheduled(false);
     await scheduleDailyNotifications();
   }
 }

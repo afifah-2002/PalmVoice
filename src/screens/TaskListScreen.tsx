@@ -1,7 +1,8 @@
 import { PressStart2P_400Regular, useFonts } from '@expo-google-fonts/press-start-2p';
 import { useRouter } from 'expo-router';
 import React, { useEffect, useRef, useState } from 'react';
-import { Animated, FlatList, Image, Modal, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { Animated, FlatList, Image, Modal, Pressable, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import * as Haptics from 'expo-haptics';
 import { FavoriteButtons } from '../components/FavoriteButtons';
 import { PalmButton } from '../components/PalmButton';
 import { PixelAlert } from '../components/PixelAlert';
@@ -14,6 +15,86 @@ import { playTaskComplete } from '../services/soundService';
 import { loadCoins, loadTasks, saveCoins, saveTasks } from '../services/storage';
 import { executeAutomation, AutomationType } from '../services/automationService';
 import { Task } from '../types/Task';
+
+// Icon Button Styles (defined separately to prevent flickering)
+const iconButtonStyles = StyleSheet.create({
+  iconButton: {
+    width: 36,
+    height: 36,
+    borderRadius: 8,
+    backgroundColor: '#FFFFFF',
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 2,
+    overflow: 'hidden',
+    // Pixelated 3D raised effect
+    borderTopColor: '#E0E0E0',
+    borderLeftColor: '#E0E0E0',
+    borderBottomColor: '#A0A0A0',
+    borderRightColor: '#A0A0A0',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.3,
+    shadowRadius: 0,
+    elevation: 3,
+  },
+  iconButtonPressed: {
+    // Pressed down effect - inverted borders
+    borderTopColor: '#A0A0A0',
+    borderLeftColor: '#A0A0A0',
+    borderBottomColor: '#E0E0E0',
+    borderRightColor: '#E0E0E0',
+    backgroundColor: '#F0F0F0',
+  },
+  iconButtonImage: {
+    width: 28,
+    height: 28,
+  },
+});
+
+// Icon Button Component - Rounded, raised, clickable button (moved outside to prevent flickering)
+const IconButton = React.memo(({ iconSource, onPress }: { iconSource: any; onPress: (e: any) => void }) => {
+  const scaleAnim = useRef(new Animated.Value(1)).current;
+
+  const handlePressIn = () => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    Animated.spring(scaleAnim, {
+      toValue: 0.9,
+      useNativeDriver: true,
+      tension: 300,
+      friction: 10,
+    }).start();
+  };
+
+  const handlePressOut = () => {
+    Animated.spring(scaleAnim, {
+      toValue: 1,
+      useNativeDriver: true,
+      tension: 300,
+      friction: 10,
+    }).start();
+  };
+
+  return (
+    <Animated.View style={{ transform: [{ scale: scaleAnim }] }}>
+      <Pressable
+        onPressIn={handlePressIn}
+        onPressOut={handlePressOut}
+        onPress={onPress}
+        style={({ pressed: isPressed }) => [
+          iconButtonStyles.iconButton,
+          isPressed && iconButtonStyles.iconButtonPressed,
+        ]}
+      >
+        <Image 
+          source={iconSource} 
+          style={iconButtonStyles.iconButtonImage}
+          resizeMode="cover"
+        />
+      </Pressable>
+    </Animated.View>
+  );
+});
 
 export const TaskListScreen: React.FC = () => {
   const router = useRouter();
@@ -191,8 +272,8 @@ export const TaskListScreen: React.FC = () => {
   const handleMarkTaskAsDone = async () => {
     if (clickedTask) {
       const task = tasks.find(t => t.id === clickedTask.id);
-      if (task && !task.completed) {
-        playTaskComplete();
+    if (task && !task.completed) {
+      playTaskComplete();
         
         // Award coins for completing a task
         const currentCoins = await loadCoins();
@@ -203,7 +284,7 @@ export const TaskListScreen: React.FC = () => {
         showCoinEarnedPopup(1);
       }
       
-      setTasks(tasks.map(task => 
+    setTasks(tasks.map(task => 
         task.id === clickedTask.id ? { ...task, completed: !task.completed } : task
       ));
       setClickedTask(null);
@@ -353,7 +434,9 @@ export const TaskListScreen: React.FC = () => {
   const toggleSelectionMode = () => {
     setIsSelectionMode(!isSelectionMode);
     setSelectedTaskIds(new Set());
+    setIsPriorityMode(false); // Exit priority mode when entering selection mode
   };
+
 
   const selectAllTasks = () => {
     if (selectedTaskIds.size === tasks.length) {
@@ -552,20 +635,14 @@ export const TaskListScreen: React.FC = () => {
       {item.icons && item.icons.length > 0 && (
         <View style={styles.taskIconsContainer}>
           {item.icons.map((iconName, index) => (
-            <TouchableOpacity 
+            <IconButton
               key={index}
+              iconSource={iconMap[iconName]}
               onPress={(e) => {
                 e.stopPropagation();
                 handleIconAutomation(item, iconName);
               }}
-              activeOpacity={0.7}
-            >
-              <Image 
-                source={iconMap[iconName]} 
-                style={styles.taskIcon}
-                resizeMode="contain"
-              />
-            </TouchableOpacity>
+            />
           ))}
         </View>
       )}
@@ -578,7 +655,7 @@ export const TaskListScreen: React.FC = () => {
         </Text>
         {item.dueDate && (
           <View style={styles.taskDateContainer}>
-            <Text style={styles.taskDate}>{formatDate(item.dueDate)}</Text>
+          <Text style={styles.taskDate}>{formatDate(item.dueDate)}</Text>
             {isTaskOverdue(item) && (
               <TouchableOpacity
                 onPress={() => handleOverdueIconPress(item)}
@@ -587,8 +664,8 @@ export const TaskListScreen: React.FC = () => {
               >
                 <Text style={styles.overdueIconText}>!</Text>
               </TouchableOpacity>
-            )}
-          </View>
+        )}
+      </View>
         )}
       </View>
       {!isSelectionMode && (
@@ -627,7 +704,7 @@ export const TaskListScreen: React.FC = () => {
       {/* Bezel with Palm Pilot branding */}
       <View style={styles.bezel}>
         <View style={styles.bezelTop}>
-          <Text style={styles.palmPilotText}>Palm Pilot</Text>
+          <Text style={styles.palmPilotText}>Palm Pet</Text>
           <View style={styles.logo3Com}>
             <Text style={styles.logo3ComText}>3Com</Text>
           </View>
@@ -642,23 +719,25 @@ export const TaskListScreen: React.FC = () => {
             <Text style={[styles.headerText, { color: theme.headerText }]}>TASKS</Text>
             {!isSelectionMode && (
               <View style={styles.headerCenter}>
-                <TouchableOpacity
+        <TouchableOpacity 
                   onPress={() => setShowCompletedTasks(true)}
                   style={styles.headerButton}
-                >
+        >
                   <Text style={[styles.headerButtonText, { color: theme.headerText }]}>COMPLETED</Text>
-                </TouchableOpacity>
+        </TouchableOpacity>
               </View>
             )}
-            <TouchableOpacity
-              onPress={toggleSelectionMode}
-              style={styles.headerButton}
-            >
-              <Text style={[styles.headerButtonText, { color: theme.headerText }]}>
-                {isSelectionMode ? 'CANCEL' : 'SELECT'}
-              </Text>
-            </TouchableOpacity>
-          </View>
+            <View style={styles.headerButtons}>
+              <TouchableOpacity
+                onPress={toggleSelectionMode}
+                style={styles.headerButton}
+              >
+                <Text style={[styles.headerButtonText, { color: theme.headerText }]}>
+                  {isSelectionMode ? 'CANCEL' : 'SELECT'}
+                </Text>
+              </TouchableOpacity>
+            </View>
+      </View>
 
       <FlatList
         data={tasks.filter(task => !task.completed)}
@@ -683,7 +762,7 @@ export const TaskListScreen: React.FC = () => {
                   {selectedTaskIds.size === tasks.length && tasks.length > 0 ? 'DESELECT ALL' : 'SELECT ALL'}
                 </Text>
               </TouchableOpacity>
-              <View style={styles.buttonSpacer} />
+        <View style={styles.buttonSpacer} />
               <TouchableOpacity 
                 onPress={markSelectedAsDone}
                 disabled={selectedTaskIds.size === 0}
@@ -728,8 +807,8 @@ export const TaskListScreen: React.FC = () => {
           title="NEW TASK" 
                 onPress={handleNewTaskPress}
                 theme={theme}
-              />
-            </View>
+        />
+      </View>
           )}
 
           {/* Edit Task Mode with Keyboard */}
@@ -896,10 +975,11 @@ export const TaskListScreen: React.FC = () => {
                   }
                 }}
                 onEnter={() => {
-                  if (isEditingTitle && editText.trim()) {
-                    setIsEditingTitle(false);
+                  // Insert newline character
+                  if (isEditingTitle) {
+                    setEditText((prev) => prev + '\n');
                   } else {
-                    saveEditTask();
+                    setEditDescription((prev) => prev + '\n');
                   }
                 }}
                 onSpace={() => {
@@ -1392,11 +1472,19 @@ export const TaskListScreen: React.FC = () => {
                   }
                 }}
                 onEnter={() => {
-                  if (isEditingTitle && typedTaskText.trim()) {
-                    setIsEditingTitle(false);
-                    setCursorPosition(typedTaskDescription.length);
+                  // Insert newline character at cursor position
+                  if (isEditingTitle) {
+                    setTypedTaskText((prev) => {
+                      const newText = prev.slice(0, cursorPosition) + '\n' + prev.slice(cursorPosition);
+                      setCursorPosition(cursorPosition + 1);
+                      return newText;
+                    });
                   } else {
-                    handleSaveTypedTask();
+                    setTypedTaskDescription((prev) => {
+                      const newText = prev.slice(0, cursorPosition) + '\n' + prev.slice(cursorPosition);
+                      setCursorPosition(cursorPosition + 1);
+                      return newText;
+                    });
                   }
                 }}
                 onSpace={() => {
@@ -1620,7 +1708,39 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     marginRight: 8,
-    gap: 4,
+    gap: 6,
+  },
+  iconButton: {
+    width: 36,
+    height: 36,
+    borderRadius: 8,
+    backgroundColor: '#FFFFFF',
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 2,
+    overflow: 'hidden',
+    // Pixelated 3D raised effect
+    borderTopColor: '#E0E0E0',
+    borderLeftColor: '#E0E0E0',
+    borderBottomColor: '#A0A0A0',
+    borderRightColor: '#A0A0A0',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.3,
+    shadowRadius: 0,
+    elevation: 3,
+  },
+  iconButtonPressed: {
+    // Pressed down effect - inverted borders
+    borderTopColor: '#A0A0A0',
+    borderLeftColor: '#A0A0A0',
+    borderBottomColor: '#E0E0E0',
+    borderRightColor: '#E0E0E0',
+    backgroundColor: '#F0F0F0',
+  },
+  iconButtonImage: {
+    width: 28,
+    height: 28,
   },
   taskIcon: {
     width: 24,
