@@ -1300,14 +1300,16 @@ export function PetsScreen() {
   const useHealthPotion = async () => {
     if (!pet) return;
     
-    const currentHealth = getCurrentHealth(pet);
-    console.log('Using potion - current health:', currentHealth, 'stored health:', pet.health, 'lastPotion:', pet.lastPotion);
+    // Use displayedHealth (what user sees) instead of getCurrentHealth to ensure accuracy
+    const currentHealth = displayedHealth;
+    console.log('Using potion - displayed health:', currentHealth, 'stored health:', pet.health, 'lastPotion:', pet.lastPotion);
     
     if (healthPotions <= 0 || currentHealth >= 5 || currentHealth === 0) {
       console.log('Cannot use potion - potions:', healthPotions, 'currentHealth:', currentHealth);
       return;
     }
 
+    // Add exactly 2 hearts to the current displayed health
     const newHealth = Math.min(5, currentHealth + 2);
     const now = Date.now();
 
@@ -1318,7 +1320,7 @@ export function PetsScreen() {
       lastPotion: now, // Track when potion was used - this resets the decay clock
     };
     
-    console.log('Potion applied - new health:', newHealth, 'lastPotion:', now);
+    console.log('Potion applied - current health:', currentHealth, 'new health:', newHealth, 'lastPotion:', now);
     
     // IMPORTANT: Await the save to prevent race conditions
     await savePet(updatedPet, updatedPet.type);
