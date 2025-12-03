@@ -1314,10 +1314,12 @@ export function PetsScreen() {
     const now = Date.now();
 
     // Using potion counts as an interaction, resets the decline clock
+    // CRITICAL: Clear lastRevival when using potion - pet is no longer in revival mode
     const updatedPet: Pet = {
       ...pet,
       health: newHealth, // This becomes the new baseline for health calculation
       lastPotion: now, // Track when potion was used - this resets the decay clock
+      lastRevival: 0, // Clear revival timestamp - pet is now in normal interaction mode
     };
     
     console.log('Potion applied - current health:', currentHealth, 'new health:', newHealth, 'lastPotion:', now);
