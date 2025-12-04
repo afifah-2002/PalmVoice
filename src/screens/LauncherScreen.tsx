@@ -1,6 +1,6 @@
 import { PressStart2P_400Regular, useFonts } from '@expo-google-fonts/press-start-2p';
-import { useRouter } from 'expo-router';
-import React, { useEffect, useState } from 'react';
+import { useFocusEffect, useRouter } from 'expo-router';
+import React, { useCallback, useEffect, useState } from 'react';
 import { Image, ImageBackground, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { DailyRewardPopup } from '../components/DailyRewardPopup';
 import { FavoriteButtons } from '../components/FavoriteButtons';
@@ -164,7 +164,11 @@ interface Pet {
   health: number;
   lastFed: number;
   lastPet: number;
+  lastPlay?: number;
+  lastPotion?: number;
+  lastRevival?: number;
   createdAt?: number; // Timestamp of midnight on creation day
+  originalCreatedAt?: number;
 }
 
 // Cat sit animation frames
@@ -208,24 +212,61 @@ export default function LauncherScreen() {
     PressStart2P_400Regular,
   });
 
-  // Load pet, coins, tasks, and pets theme on mount
+  // Calculate current health based on time since last interaction
+  // This matches the logic from PetsScreen
+  const getCurrentHealth = (petData: Pet | null): number => {
+    if (!petData) return 0;
+    
+    // Get the most recent interaction time (including potion and revival)
+    const lastInteraction = Math.max(
+      petData.lastFed || 0,
+      petData.lastPet || 0,
+      petData.lastPlay || 0,
+      petData.lastPotion || 0,
+      petData.lastRevival || 0
+    );
+    
+    const now = Date.now();
+    const hoursPerHeart = 4.8;
+    const millisecondsPerHeart = hoursPerHeart * 60 * 60 * 1000;
+    
+    if (lastInteraction > 0) {
+      // Health declines from the stored health (which was set at last interaction)
+      const elapsedSinceInteraction = now - lastInteraction;
+      const heartsLost = Math.floor(elapsedSinceInteraction / millisecondsPerHeart);
+      const calculatedHealth = Math.max(0, petData.health - heartsLost);
+      return calculatedHealth;
+    }
+    
+    // If no interactions, decline from creation time
+    if (petData.createdAt) {
+      const elapsedTime = now - petData.createdAt;
+      const heartsLost = Math.floor(elapsedTime / millisecondsPerHeart);
+      return Math.max(0, 5 - heartsLost);
+    }
+    
+    return petData.health;
+  };
+
+  // Load pet, coins, tasks, and pets theme
+  const loadData = useCallback(async () => {
+    const savedPet = await loadPet();
+    if (savedPet) {
+      setPet(savedPet as Pet);
+    }
+    const savedCoins = await loadCoins();
+    setCoins(savedCoins);
+    const loadedTasks = await loadTasks();
+    setTasks(loadedTasks);
+    const savedTheme = await loadPetsTheme();
+    if (savedTheme) {
+      setPetsTheme(savedTheme as PetsTheme);
+    }
+  }, []);
+
+  // Load data on mount and when screen comes into focus
   useEffect(() => {
-    loadPet().then((savedPet) => {
-      if (savedPet) {
-        setPet(savedPet as Pet);
-      }
-    });
-    loadCoins().then((savedCoins) => {
-      setCoins(savedCoins);
-    });
-    loadTasks().then((loadedTasks) => {
-      setTasks(loadedTasks);
-    });
-    loadPetsTheme().then((savedTheme) => {
-      if (savedTheme) {
-        setPetsTheme(savedTheme as PetsTheme);
-      }
-    });
+    loadData();
 
     // Check for daily reward eligibility
     loadLastDailyReward().then((lastReward) => {
@@ -252,9 +293,19 @@ export default function LauncherScreen() {
     scheduleDailyNotifications();
   }, []);
 
+  // Reload pet when screen comes into focus
+  useFocusEffect(
+    useCallback(() => {
+      loadData();
+    }, [loadData])
+  );
+
+  // Calculate displayed health
+  const displayedHealth = pet ? getCurrentHealth(pet) : 0;
+
   // Animate pet sit frames
   useEffect(() => {
-    if (!pet || pet.health === 0) {
+    if (!pet || displayedHealth === 0) {
       return;
     }
     const interval = setInterval(() => {
@@ -269,7 +320,7 @@ export default function LauncherScreen() {
       }
     }, 1000);
     return () => clearInterval(interval);
-  }, [pet]);
+  }, [pet, displayedHealth]);
 
   // Calculate streak (days alive)
   const calculateStreak = (pet: Pet | null): number => {
@@ -278,7 +329,7 @@ export default function LauncherScreen() {
     }
     
     // If pet is dead, streak is 0
-    if (pet.health === 0) {
+    if (displayedHealth === 0) {
       return 0;
     }
     
@@ -418,7 +469,7 @@ export default function LauncherScreen() {
                       
                       {/* Pet Sprite */}
                       <View style={styles.petSpriteContainer}>
-                        {pet.health === 0 ? (
+                        {displayedHealth === 0 ? (
                           <Image
                             source={
                               pet.type === 'puppy'
@@ -456,11 +507,11 @@ export default function LauncherScreen() {
                       <View style={styles.healthContainer}>
                         <Image
                           source={
-                            pet.health === 5 ? require('../../assets/pets/health/heart5 .png') :
-                            pet.health === 4 ? require('../../assets/pets/health/heart4.png') :
-                            pet.health === 3 ? require('../../assets/pets/health/heart3.png') :
-                            pet.health === 2 ? require('../../assets/pets/health/heart2.png') :
-                            pet.health === 1 ? require('../../assets/pets/health/heart1.png') :
+                            displayedHealth === 5 ? require('../../assets/pets/health/heart5 .png') :
+                            displayedHealth === 4 ? require('../../assets/pets/health/heart4.png') :
+                            displayedHealth === 3 ? require('../../assets/pets/health/heart3.png') :
+                            displayedHealth === 2 ? require('../../assets/pets/health/heart2.png') :
+                            displayedHealth === 1 ? require('../../assets/pets/health/heart1.png') :
                             require('../../assets/pets/health/heart0.png')
                           }
                           style={styles.healthHeart}
@@ -468,11 +519,11 @@ export default function LauncherScreen() {
                         />
                         <Image
                           source={
-                            pet.health === 5 ? require('../../assets/pets/health/bar5.png') :
-                            pet.health === 4 ? require('../../assets/pets/health/bar4.png') :
-                            pet.health === 3 ? require('../../assets/pets/health/bar3.png') :
-                            pet.health === 2 ? require('../../assets/pets/health/bar2.png') :
-                            pet.health === 1 ? require('../../assets/pets/health/bar1.png') :
+                            displayedHealth === 5 ? require('../../assets/pets/health/bar5.png') :
+                            displayedHealth === 4 ? require('../../assets/pets/health/bar4.png') :
+                            displayedHealth === 3 ? require('../../assets/pets/health/bar3.png') :
+                            displayedHealth === 2 ? require('../../assets/pets/health/bar2.png') :
+                            displayedHealth === 1 ? require('../../assets/pets/health/bar1.png') :
                             require('../../assets/pets/health/bar0.png')
                           }
                           style={styles.healthBar}

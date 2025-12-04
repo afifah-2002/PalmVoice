@@ -1523,9 +1523,20 @@ export function PetsScreen() {
           // We only calculate health for display - we should NEVER overwrite the stored baseline.
           // Just set the pet state - the displayed health will be calculated by getCurrentHealth()
           setPet(petWithNewFields as Pet);
-          // Only save if we're adding missing metadata fields, NOT to update health
+          // IMPORTANT: Always save when switching pets to update CURRENT_PET_TYPE_KEY
+          // This ensures other screens (like LauncherScreen) know which pet is active
+          // Only update stored health if we're adding missing metadata fields
           if (!existingPet.originalCreatedAt || !existingPet.lastPotion || !existingPet.lastRevival) {
+            // Save with metadata updates
             savePet(petWithNewFields, petWithNewFields.type);
+          } else {
+            // Save without changing health - just to update CURRENT_PET_TYPE_KEY
+            // Create a copy with the same stored health to avoid overwriting it
+            const petToSave = {
+              ...petWithNewFields,
+              health: existingPet.health, // Keep the stored baseline health
+            };
+            savePet(petToSave, petToSave.type);
           }
           setShowPetDropdown(false);
         } else {
