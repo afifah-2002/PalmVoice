@@ -268,39 +268,26 @@ export default function LauncherScreen() {
   useEffect(() => {
     loadData();
 
-    // TEMPORARY: Award coin every time app opens
-    loadCoins().then((currentCoins) => {
-      const newCoins = currentCoins + 1;
-      saveCoins(newCoins);
-      setCoins(newCoins);
-      
-      // Show popup after a short delay
-      setTimeout(() => {
-        setShowDailyReward(true);
-      }, 500);
-    });
-
-    // ORIGINAL LOGIC (commented out):
     // Check for daily reward eligibility
-    // loadLastDailyReward().then((lastReward) => {
-    //   if (isEligibleForDailyReward(lastReward)) {
-    //     // Award 1 coin
-    //     loadCoins().then((currentCoins) => {
-    //       const newCoins = currentCoins + 1;
-    //       saveCoins(newCoins);
-    //       setCoins(newCoins);
-    //       
-    //       // Save current timestamp as last reward
-    //       const now = Date.now();
-    //       saveLastDailyReward(now);
-    //       
-    //       // Show popup after a short delay
-    //       setTimeout(() => {
-    //         setShowDailyReward(true);
-    //       }, 500);
-    //     });
-    //   }
-    // });
+    loadLastDailyReward().then((lastReward) => {
+      if (isEligibleForDailyReward(lastReward)) {
+        // Award 1 coin
+        loadCoins().then((currentCoins) => {
+          const newCoins = currentCoins + 1;
+          saveCoins(newCoins);
+          setCoins(newCoins);
+          
+          // Save current timestamp as last reward
+          const now = Date.now();
+          saveLastDailyReward(now);
+          
+          // Show popup after a short delay
+          setTimeout(() => {
+            setShowDailyReward(true);
+          }, 500);
+        });
+      }
+    });
 
     // Schedule daily notifications
     scheduleDailyNotifications();
