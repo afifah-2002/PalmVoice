@@ -166,7 +166,7 @@ Once MCP is available:
 
 Created agent file: `app-integrations-builder.md` with complete specifications for iOS app integrations.
 
-Used agent as implementation guide in Cursor to build:
+Used agent as implementation guide in kiro to build:
 - Calendar integration (creates actual events with expo-calendar)
 - Reminders integration (creates iOS reminders)
 - Gmail/Outlook/WhatsApp pre-fill functionality
