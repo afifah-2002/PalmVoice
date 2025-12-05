@@ -2,7 +2,7 @@
 
 This is an [Expo](https://expo.dev) project created with [`create-expo-app`](https://www.npmjs.com/package/create-expo-app).
 
-##License
+## License
 
 This project is Licensed under MIT - check the License folder under code for more details.
 
