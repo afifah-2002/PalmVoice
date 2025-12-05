@@ -4,7 +4,7 @@ This is an [Expo](https://expo.dev) project created with [`create-expo-app`](htt
 
 ## License
 
-This project is Licensed under MIT - check the License folder under code for more details.
+This project is Licensed under MIT - check the License file in code for more details.
 
 ## Get started
 
