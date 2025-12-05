@@ -2,7 +2,9 @@
 
 This is an [Expo](https://expo.dev) project created with [`create-expo-app`](https://www.npmjs.com/package/create-expo-app).
 
-https://img.shields.io/badge/License-MIT-green
+##License
+
+This project is Licensed under MIT - check the License folder under code for more details.
 
 ## Get started
 
